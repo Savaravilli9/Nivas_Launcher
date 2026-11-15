@@ -105,8 +105,7 @@ class MainActivity : Activity() {
                 if (needOverlay) {
                     try {
                         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-                    } catch (_: Exception) {
-                    }
+                    } catch (_: Exception) {}
                 }
             }
             .setNegativeButton("Later", null)
@@ -115,10 +114,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            unregisterReceiver(pkgReceiver)
-        } catch (_: Exception) {
-        }
+        try { unregisterReceiver(pkgReceiver) } catch (_: Exception) {}
     }
 
     override fun onResume() {
@@ -144,6 +140,7 @@ class MainActivity : Activity() {
         }
         return super.dispatchKeyEvent(event)
     }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         @Suppress("DEPRECATION")
@@ -152,8 +149,7 @@ class MainActivity : Activity() {
             val uri = data.data!!
             try {
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
 
             lp.prefs.edit()
                 .putString(LauncherPreferences.PREF_WALLPAPER, uri.toString())
@@ -181,7 +177,6 @@ class MainActivity : Activity() {
             Toast.makeText(this, "No image picker found", Toast.LENGTH_SHORT).show()
         }
     }
-
     private fun buildScreen() {
         rootLayout = FrameLayout(this)
         LauncherBackground.apply(this, rootLayout, lp)
@@ -194,21 +189,12 @@ class MainActivity : Activity() {
 
         topNavBar = TopNavBar(this, lp, object : TopNavBar.NavCallbacks {
             override fun onVoiceSearch() {
-                val actions = listOf(
-                    Intent.ACTION_ASSIST,
-                    RecognizerIntent.ACTION_WEB_SEARCH,
-                    Intent.ACTION_VOICE_COMMAND
-                )
+                val actions = listOf(Intent.ACTION_ASSIST, RecognizerIntent.ACTION_WEB_SEARCH, Intent.ACTION_VOICE_COMMAND)
                 for (act in actions) {
-                    try {
-                        startActivity(Intent(act))
-                        return
-                    } catch (_: Exception) {
-                    }
+                    try { startActivity(Intent(act)); return } catch (_: Exception) {}
                 }
                 Toast.makeText(this@MainActivity, "Voice Assistant not installed", Toast.LENGTH_SHORT).show()
             }
-
             override fun onWifiClick() = sideDrawer.toggle(SideControlDrawer.MODE_WIFI)
             override fun onAlertsClick() = sideDrawer.toggle(SideControlDrawer.MODE_ALERTS)
             override fun onCustomizeClick() = sideDrawer.toggle(SideControlDrawer.MODE_CUSTOMIZE)
@@ -277,7 +263,7 @@ class MainActivity : Activity() {
         mainBody.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         setupRightDrawer(contentArea)
-                val nudgeView = topNavBar.createFloatingNudgeView()
+        val nudgeView = topNavBar.createFloatingNudgeView()
         rootLayout.addView(
             nudgeView,
             FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
@@ -290,7 +276,7 @@ class MainActivity : Activity() {
         refreshApps(true)
     }
 
-        private fun setupRightDrawer(contentArea: FrameLayout) {
+    private fun setupRightDrawer(contentArea: FrameLayout) {
         drawerScrim = View(this).apply {
             setBackgroundColor(0x55000000)
             visibility = View.GONE
@@ -312,9 +298,26 @@ class MainActivity : Activity() {
         contentArea.addView(drawerLayout, dpParams)
 
         sideDrawer = SideControlDrawer(
-            this, drawerLayout, drawerScrim, lp,
+            this, drawerLayout, drawerScrim, mainPage, lp,
             ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker
         )
+    }
+
+    private fun applyLiveVisuals() {
+        topNavBar.refreshGreeting()
+        LauncherBackground.updateThemeAndAccent(rootLayout, lp)
+        val newW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+        if (drawerLayout.layoutParams.width != newW) {
+            drawerLayout.layoutParams.width = newW
+            drawerLayout.requestLayout()
+        }
+        refreshApps(!sideDrawer.isOpen)
+    }
+
+    private fun applyWallpaperOnly() {
+        rootLayout.removeAllViews()
+        rootLayout.addView(mainPage)
+        LauncherBackground.apply(this, rootLayout, lp)
     }
 
     private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
@@ -328,19 +331,23 @@ class MainActivity : Activity() {
                     val added = !list.contains(pkg)
                     if (added) list.add(pkg) else list.remove(pkg)
                     lp.setFavorites(list)
-                    Toast.makeText(this@MainActivity, if (added) "$label added" else "$label removed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, if (added) "$label added to Favorites" else "$label removed", Toast.LENGTH_SHORT).show()
                     refreshApps(true, pkg)
                 }
+
                 override fun onMoveFavorite(pkg: String, delta: Int) {
                     if (lp.moveFavorite(pkg, delta)) refreshApps(true, pkg)
                 }
+
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }
                     lp.setHiddenApps(hidden)
+                    Toast.makeText(this@MainActivity, "$label hidden (Restore in Customize)", Toast.LENGTH_SHORT).show()
                     refreshApps(true)
                 }
             }
         )
     }
+
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }
