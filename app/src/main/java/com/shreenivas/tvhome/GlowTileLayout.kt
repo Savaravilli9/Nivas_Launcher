@@ -20,8 +20,9 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
     private val spotlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val outerHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    
     private val rectF = RectF()
-    private val sheenRect = newRectF()
+    private val sheenRect = RectF()
     private val shapePath = Path()
 
     private var tileFocused = false
@@ -37,18 +38,58 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         clipToPadding = false
     }
 
-    private fun newRectF() = RectF()
-
     fun setStyle(color: Int, shape: String?, themeKey: String?) {
         accentColor = color
         tileShape = shape ?: "squircle"
-        tileKey = themeKey ?: "frost"
+        this.tileKey = themeKey ?: "frost"
+        updateShaders(width.toFloat(), height.toFloat())
         invalidate()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val wf = w.toFloat()
+        val hf = h.toFloat()
+        buildShapePath(wf, hf)
+        updateShaders(wf, hf)
+    }
+
+    private fun updateShaders(w: Float, h: Float) {
+        if (w <= 0f || h <= 0f) return
+        
+        val colors = TileThemePalette.getTopBottomColors(tileKey, tileFocused)
+        cardPaint.shader = LinearGradient(0f, 0f, 0f, h, colors, null, Shader.TileMode.CLAMP)
+
+        sheenRect.set(0f, 0f, w, h * 0.50f)
+        glassSheenPaint.shader = LinearGradient(
+            0f, 0f, 0f, h * 0.50f,
+            Color.argb(if (tileFocused) 115 else 68, 255, 255, 255),
+            Color.argb(6, 255, 255, 255),
+            Shader.TileMode.CLAMP
+        )
+
+        if (tileFocused) {
+            val centerGlow = LauncherUtils.withAlpha(accentColor, 130)
+            spotlightPaint.shader = RadialGradient(
+                w / 2f, h * 0.42f, maxOf(w, h) * 0.58f,
+                centerGlow, Color.TRANSPARENT, Shader.TileMode.CLAMP
+            )
+            borderPaint.shader = null
+        } else {
+            borderPaint.shader = LinearGradient(
+                0f, 0f, 0f, h,
+                Color.argb(120, 255, 255, 255),
+                Color.argb(30, 255, 255, 255),
+                Shader.TileMode.CLAMP
+            )
+        }
     }
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         tileFocused = gainFocus
+
+        updateShaders(width.toFloat(), height.toFloat())
 
         animate().cancel()
         animate()
@@ -113,29 +154,15 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat()
         val h = height.toFloat()
-        buildShapePath(w, h)
+        if (w <= 0f || h <= 0f) return
 
-        val colors = TileThemePalette.getTopBottomColors(tileKey, tileFocused)
-        cardPaint.shader = LinearGradient(0f, 0f, 0f, h, colors, null, Shader.TileMode.CLAMP)
         canvas.drawPath(shapePath, cardPaint)
 
         canvas.save()
         canvas.clipPath(shapePath)
-        sheenRect.set(0f, 0f, w, h * 0.50f)
-        glassSheenPaint.shader = LinearGradient(
-            0f, 0f, 0f, h * 0.50f,
-            Color.argb(if (tileFocused) 115 else 68, 255, 255, 255),
-            Color.argb(6, 255, 255, 255),
-            Shader.TileMode.CLAMP
-        )
         canvas.drawRect(sheenRect, glassSheenPaint)
 
         if (tileFocused) {
-            val centerGlow = LauncherUtils.withAlpha(accentColor, 130)
-            spotlightPaint.shader = RadialGradient(
-                w / 2f, h * 0.42f, maxOf(w, h) * 0.58f,
-                centerGlow, Color.TRANSPARENT, Shader.TileMode.CLAMP
-            )
             canvas.drawRect(0f, 0f, w, h, spotlightPaint)
         }
         canvas.restore()
@@ -145,20 +172,12 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
             outerHaloPaint.color = LauncherUtils.withAlpha(accentColor, (pulseAlpha * 255).toInt())
             canvas.drawPath(shapePath, outerHaloPaint)
 
-            borderPaint.shader = null
             borderPaint.strokeWidth = dp(2.2f)
             borderPaint.color = accentColor
             canvas.drawPath(shapePath, borderPaint)
         } else {
             borderPaint.strokeWidth = dp(1f)
-            borderPaint.shader = LinearGradient(
-                0f, 0f, 0f, h,
-                Color.argb(120, 255, 255, 255),
-                Color.argb(30, 255, 255, 255),
-                Shader.TileMode.CLAMP
-            )
             canvas.drawPath(shapePath, borderPaint)
-            borderPaint.shader = null
         }
 
         super.onDraw(canvas)
