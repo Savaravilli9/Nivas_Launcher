@@ -134,7 +134,7 @@ object LauncherBackground {
 
             skyPaint.shader = LinearGradient(
                 0f, 0f, w.toFloat(), h.toFloat(),
-                intArrayOf(baseColors, baseColors, baseColors),
+                baseColors,
                 floatArrayOf(0f, 0.50f, 1f),
                 Shader.TileMode.CLAMP
             )
