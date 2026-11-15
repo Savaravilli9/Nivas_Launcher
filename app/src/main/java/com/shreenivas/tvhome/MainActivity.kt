@@ -290,7 +290,7 @@ class MainActivity : Activity() {
         refreshApps(true)
     }
 
-    private fun setupRightDrawer(contentArea: FrameLayout) {
+        private fun setupRightDrawer(contentArea: FrameLayout) {
         drawerScrim = View(this).apply {
             setBackgroundColor(0x55000000)
             visibility = View.GONE
@@ -312,29 +312,12 @@ class MainActivity : Activity() {
         contentArea.addView(drawerLayout, dpParams)
 
         sideDrawer = SideControlDrawer(
-            this, drawerLayout, drawerScrim, mainPage, lp, // ఇక్కడ కొత్తగా mainPage ని ఆర్గ్యుమెంట్ గా పంపుతున్నాం
+            this, drawerLayout, drawerScrim, lp,
             ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker
         )
     }
 
-    private fun applyLiveVisuals() {
-        topNavBar.refreshGreeting()
-        LauncherBackground.updateThemeAndAccent(rootLayout, lp)
-        val newW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
-        if (drawerLayout.layoutParams.width != newW) {
-            drawerLayout.layoutParams.width = newW
-            drawerLayout.requestLayout()
-        }
-        refreshApps(!sideDrawer.isOpen)
-    }
-
-    private fun applyWallpaperOnly() {
-        rootLayout.removeAllViews()
-        rootLayout.addView(mainPage)
-        LauncherBackground.apply(this, rootLayout, lp)
-    }
-
-        private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
+    private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
         val isDrawerOpen = if (::sideDrawer.isInitialized) sideDrawer.isOpen else false
         AppGridManager.populate(
             this, lp, favSection, favRow, favCount, appGrid, allCount,
@@ -345,7 +328,7 @@ class MainActivity : Activity() {
                     val added = !list.contains(pkg)
                     if (added) list.add(pkg) else list.remove(pkg)
                     lp.setFavorites(list)
-                    Toast.makeText(this@MainActivity, if (added) "$label added to Favorites" else "$label removed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, if (added) "$label added" else "$label removed", Toast.LENGTH_SHORT).show()
                     refreshApps(true, pkg)
                 }
                 override fun onMoveFavorite(pkg: String, delta: Int) {
@@ -354,12 +337,10 @@ class MainActivity : Activity() {
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }
                     lp.setHiddenApps(hidden)
-                    Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
                     refreshApps(true)
                 }
             }
         )
     }
-
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }
