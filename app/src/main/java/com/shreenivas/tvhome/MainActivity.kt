@@ -334,10 +334,11 @@ class MainActivity : Activity() {
         LauncherBackground.apply(this, rootLayout, lp)
     }
 
-    private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
+        private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
+        val isDrawerOpen = if (::sideDrawer.isInitialized) sideDrawer.isOpen else false
         AppGridManager.populate(
             this, lp, favSection, favRow, favCount, appGrid, allCount,
-            shouldRequestFocus, restorePkg,
+            shouldRequestFocus, restorePkg, isDrawerOpen,
             object : AppTileFactory.TileActions {
                 override fun onToggleFavorite(pkg: String, label: String) {
                     val list = lp.getOrderedFavorites()
@@ -347,15 +348,13 @@ class MainActivity : Activity() {
                     Toast.makeText(this@MainActivity, if (added) "$label added to Favorites" else "$label removed", Toast.LENGTH_SHORT).show()
                     refreshApps(true, pkg)
                 }
-
                 override fun onMoveFavorite(pkg: String, delta: Int) {
                     if (lp.moveFavorite(pkg, delta)) refreshApps(true, pkg)
                 }
-
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }
                     lp.setHiddenApps(hidden)
-                    Toast.makeText(this@MainActivity, "$label hidden (Restore in Customize)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
                     refreshApps(true)
                 }
             }
