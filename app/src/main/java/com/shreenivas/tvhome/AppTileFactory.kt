@@ -41,13 +41,13 @@ object AppTileFactory {
         val themeKey = lp.tileColor
         val badgeMode = lp.badgeMode
 
-        // Clean FrameLayout container (Fixes Double Border bug from GlowTileLayout!)
-        val tile = FrameLayout(ctx).apply {
+        // Fixed: Use GlowTileLayout to enable Custom Shape & Glow Effects!
+        val tile = GlowTileLayout(ctx).apply {
             tag = if (isFavSection) "fav_$pkg" else "all_$pkg"
             setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
             isFocusable = true
             isClickable = true
-            background = buildTileDrawable(ctx, shapeMode, themeKey, false, lp.accentColor, tileHeight)
+            setStyle(lp.accentColor, shapeMode, themeKey)
         }
 
         val innerBox = LinearLayout(ctx).apply {
@@ -101,11 +101,6 @@ object AppTileFactory {
         }
         innerBox.addView(title, LinearLayout.LayoutParams(-1, -2))
 
-        tile.setOnFocusChangeListener { v, focused ->
-            LauncherUtils.applyFocusSpring(v, focused, 1.07f, 12f)
-            v.background = buildTileDrawable(ctx, shapeMode, themeKey, focused, lp.accentColor, tileHeight)
-        }
-
         tile.setOnClickListener {
             val launch = pm.getLaunchIntentForPackage(pkg)
             if (launch != null) {
@@ -117,13 +112,7 @@ object AppTileFactory {
 
         tile.setOnLongClickListener {
             AppActionDialog.show(
-                ctx,
-                pkg,
-                label,
-                isFavorite,
-                true,
-                true,
-                lp.accentColor,
+                ctx, pkg, label, isFavorite, true, true, lp.accentColor,
                 { actions.onToggleFavorite(pkg, label) },
                 { delta -> actions.onMoveFavorite(pkg, delta) },
                 { actions.onHideApp(pkg, label) }
@@ -135,9 +124,7 @@ object AppTileFactory {
             if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_MENU) {
                 tile.performLongClick()
                 true
-            } else {
-                false
-            }
+            } else false
         }
 
         return tile
@@ -149,28 +136,6 @@ object AppTileFactory {
             "heart" -> "heart" to if (isFav) Color.rgb(255, 85, 130) else Color.argb(130, 255, 255, 255)
             "blue" -> "sparkle" to if (isFav) Color.rgb(75, 195, 255) else Color.argb(130, 255, 255, 255)
             else -> "sparkle" to if (isFav) Color.rgb(255, 215, 65) else Color.argb(130, 255, 255, 255)
-        }
-    }
-
-    private fun buildTileDrawable(
-        ctx: Context,
-        shape: String,
-        themeKey: String,
-        focused: Boolean,
-        accentColor: Int,
-        tileHeight: Int
-    ): GradientDrawable {
-        val colors = TileThemePalette.getTopBottomColors(themeKey, focused)
-        return GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors).apply {
-            cornerRadius = when (shape) {
-                "circle", "heart" -> tileHeight / 2f
-                "classic" -> LauncherUtils.dpF(ctx, 12f)
-                else -> LauncherUtils.dpF(ctx, 22f)
-            }
-            setStroke(
-                dp(ctx, if (focused) 2 else 1),
-                if (focused) accentColor else Color.argb(85, 255, 255, 255)
-            )
         }
     }
 
