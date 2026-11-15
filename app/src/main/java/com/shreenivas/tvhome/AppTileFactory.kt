@@ -117,9 +117,8 @@ object AppTileFactory {
         tile.setOnLongClickListener {
             AppActionDialog.show(
                 ctx,
-                label,
                 pkg,
-                isFavSection,
+                label,
                 isFavorite,
                 true,
                 true,
@@ -130,6 +129,7 @@ object AppTileFactory {
             )
             true
         }
+
 
         tile.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_MENU) {
