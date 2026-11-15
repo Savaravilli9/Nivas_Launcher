@@ -25,6 +25,7 @@ class SideControlDrawer(
     private val context: Context,
     private val drawerLayout: LinearLayout,
     private val scrim: View,
+    private val mainPage: View, // Added mainPage reference
     private val lp: LauncherPreferences,
     private val onLiveRefresh: () -> Unit,
     private val onWallpaperRefresh: () -> Unit,
@@ -57,11 +58,7 @@ class SideControlDrawer(
 
         drawerLayout.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(
-                Color.argb(238, 22, 30, 68),
-                Color.argb(244, 15, 22, 52),
-                Color.argb(248, 10, 15, 38)
-            )
+            intArrayOf(Color.argb(238, 22, 30, 68), Color.argb(244, 15, 22, 52), Color.argb(248, 10, 15, 38))
         ).apply {
             cornerRadius = LauncherUtils.dpF(context, 24f)
             setStroke(dp(1.5f), Color.argb(145, 255, 255, 255))
@@ -76,22 +73,30 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            // Enable Hardware Acceleration for buttery smooth slide
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            mainPage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             
             scrim.alpha = 0f
             scrim.animate().alpha(1f).setDuration(200L).start()
+
+            // Push mainPage to the left so apps don't get cut
+            mainPage.animate()
+                .translationX(-drawerLayout.layoutParams.width * 0.25f)
+                .scaleX(0.95f).scaleY(0.95f)
+                .setDuration(240L)
+                .setInterpolator(LauncherUtils.SILKY_EASE)
+                .start()
 
             val startX = drawerLayout.layoutParams.width + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
-                .translationX(0f)
-                .alpha(1f)
+                .translationX(0f).alpha(1f)
                 .setDuration(240L)
                 .setInterpolator(LauncherUtils.SILKY_EASE)
                 .withEndAction {
                     drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+                    mainPage.setLayerType(View.LAYER_TYPE_NONE, null)
                 }
                 .start()
         }
@@ -103,22 +108,32 @@ class SideControlDrawer(
         currentMode = ""
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
-        // Hardware Layer for exit animation
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        mainPage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         
         scrim.animate().alpha(0f).setDuration(180L).start()
+        
+        // Bring mainPage back to normal
+        mainPage.animate()
+            .translationX(0f)
+            .scaleX(1f).scaleY(1f)
+            .setDuration(200L)
+            .setInterpolator(LauncherUtils.SILKY_EASE)
+            .start()
+
         drawerLayout.animate()
-            .translationX(out.toFloat())
-            .alpha(0f)
+            .translationX(out.toFloat()).alpha(0f)
             .setDuration(200L)
             .setInterpolator(LauncherUtils.SILKY_EASE)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+                mainPage.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE
                 drawerLayout.visibility = View.GONE
             }
             .start()
     }
+    
 
     private fun setupDrawerSkeleton() {
         drawerLayout.removeAllViews()
