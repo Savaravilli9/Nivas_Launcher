@@ -76,6 +76,9 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
+            // Enable Hardware Acceleration for buttery smooth slide
+            drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            
             scrim.alpha = 0f
             scrim.animate().alpha(1f).setDuration(200L).start()
 
@@ -87,6 +90,9 @@ class SideControlDrawer(
                 .alpha(1f)
                 .setDuration(240L)
                 .setInterpolator(LauncherUtils.SILKY_EASE)
+                .withEndAction {
+                    drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+                }
                 .start()
         }
     }
@@ -97,6 +103,9 @@ class SideControlDrawer(
         currentMode = ""
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
+        // Hardware Layer for exit animation
+        drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        
         scrim.animate().alpha(0f).setDuration(180L).start()
         drawerLayout.animate()
             .translationX(out.toFloat())
@@ -104,6 +113,7 @@ class SideControlDrawer(
             .setDuration(200L)
             .setInterpolator(LauncherUtils.SILKY_EASE)
             .withEndAction {
+                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE
                 drawerLayout.visibility = View.GONE
             }
@@ -156,7 +166,6 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-
     private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
@@ -182,6 +191,7 @@ class SideControlDrawer(
             panel.post { panel.requestFocus() }
         }
     }
+
     private fun buildRealAlertsPanel(panel: LinearLayout) {
         val hasPerm = TvNotificationService.isPermissionGranted(context)
         if (!hasPerm) {
@@ -369,7 +379,7 @@ class SideControlDrawer(
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(12f), dp(20f), dp(8f)) }
         val nameInput = EditText(context).apply {
             isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName)
-                        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
         }
         val phraseInput = EditText(context).apply {
             isSingleLine = true
