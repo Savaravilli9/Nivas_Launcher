@@ -9,11 +9,13 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import android.graphics.SweepGradient
 import android.net.Uri
 import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -43,16 +45,14 @@ object LauncherBackground {
                 scaleY = baseZoom
                 translationX = sp.getInt("wp_offset_x", 0).toFloat()
                 translationY = baseOffsetY.toFloat()
-                try {
-                    setImageURI(Uri.parse(wallpaper))
-                } catch (_: Exception) {
-                }
+                try { setImageURI(Uri.parse(wallpaper)) } catch (_: Exception) {}
             }
             root.addView(image, 0, FrameLayout.LayoutParams(-1, -1))
             activeWallpaperView = image
         } else {
             root.background = null
-            val cosmos = RoyalMoonCosmosView(ctx, lp.tileColor, lp.accentColor)
+            // We pass accentColor for the interactive aura
+            val cosmos = RoyalMoonCosmosView(ctx, lp.accentColor)
             root.addView(cosmos, 0, FrameLayout.LayoutParams(-1, -1))
             activeCosmosView = cosmos
         }
@@ -60,7 +60,7 @@ object LauncherBackground {
 
     fun updateThemeAndAccent(root: FrameLayout, lp: LauncherPreferences) {
         if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) == null) {
-            activeCosmosView?.updateStyle(lp.tileColor, lp.accentColor)
+            activeCosmosView?.updateAccent(lp.accentColor)
         }
     }
 
@@ -72,7 +72,6 @@ object LauncherBackground {
 
     private class RoyalMoonCosmosView(
         ctx: Context,
-        private var themeKey: String,
         private var accentColor: Int
     ) : View(ctx) {
 
@@ -83,13 +82,16 @@ object LauncherBackground {
         private val moonHaloInner = Paint(Paint.ANTI_ALIAS_FLAG)
         private val moonDiscPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val craterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(26, 145, 165, 205) }
+        
+        // Added Golden Rays Paint
+        private val goldenRayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var moonR = 0f
+        
         private val starPath = Path()
-
         private var flowAnim: ValueAnimator? = null
         private var phase = 0f
         private var parallaxY = 0f
-
-        private data class SparkleStar(
+                private data class SparkleStar(
             val xRatio: Float,
             val yRatio: Float,
             val sizePx: Float,
@@ -98,8 +100,8 @@ object LauncherBackground {
             val tint: Int
         )
 
-        private val sparkles = List(42) { i ->
-            val rnd = Random(i * 1997 + 31)
+        private val sparkles = List(50) { i ->
+            val rnd = Random(i * 997 + 13)
             val d = resources.displayMetrics.density
             val tint = when (i % 4) {
                 0 -> Color.rgb(255, 245, 205)
@@ -108,17 +110,16 @@ object LauncherBackground {
                 else -> Color.WHITE
             }
             SparkleStar(
-                xRatio = 0.04f + rnd.nextFloat() * 0.92f,
-                yRatio = 0.05f + rnd.nextFloat() * 0.75f,
-                sizePx = (2.2f + rnd.nextFloat() * 4.2f) * d,
-                speed = 1.4f + rnd.nextFloat() * 2.2f,
-                offset = rnd.nextFloat() * 6.28f,
+                xRatio = 0.02f + rnd.nextFloat() * 0.96f,
+                yRatio = 0.02f + rnd.nextFloat() * 0.85f,
+                sizePx = (1.8f + rnd.nextFloat() * 4.5f) * d,
+                speed = 1.2f + rnd.nextFloat() * 3.5f,
+                offset = rnd.nextFloat() * 10f,
                 tint = tint
             )
         }
 
-        fun updateStyle(newTheme: String, newAccent: Int) {
-            themeKey = newTheme
+        fun updateAccent(newAccent: Int) {
             accentColor = newAccent
             buildShaders(width, height)
             invalidate()
@@ -138,7 +139,7 @@ object LauncherBackground {
 
             flowAnim?.cancel()
             flowAnim = ValueAnimator.ofFloat(0f, 6.28318f).apply {
-                duration = 20000L
+                duration = 18000L
                 repeatCount = ValueAnimator.INFINITE
                 interpolator = LinearInterpolator()
                 addUpdateListener {
@@ -151,26 +152,34 @@ object LauncherBackground {
 
         private fun buildShaders(w: Int, h: Int) {
             if (w <= 0 || h <= 0) return
-            val grad = TileThemePalette.getWallpaperGradient(themeKey)
-            val midColor = grad.elementAt(1)
-
+            
+            // Fixed Beautiful Deep Space Sky (Independent of Tile Theme)
+            val fixedSky = intArrayOf(Color.rgb(10, 16, 36), Color.rgb(18, 28, 56), Color.rgb(8, 12, 28))
             skyPaint.shader = LinearGradient(
                 0f, 0f, w.toFloat(), h.toFloat(),
-                grad,
+                fixedSky,
                 floatArrayOf(0f, 0.50f, 1f),
                 Shader.TileMode.CLAMP
             )
 
+            // Dynamic Aura based on Accent
             themeAuraPaint.shader = RadialGradient(
                 w * 0.32f, h * 0.42f, w * 0.65f,
-                intArrayOf(
-                    LauncherUtils.withAlpha(accentColor, 88),
-                    LauncherUtils.withAlpha(midColor, 45),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.52f, 1f),
+                intArrayOf(LauncherUtils.withAlpha(accentColor, 75), Color.TRANSPARENT),
+                floatArrayOf(0f, 1f),
                 Shader.TileMode.CLAMP
             )
+
+            // Golden Rays Sweep Shader
+            goldenRayPaint.shader = SweepGradient(0f, 0f, 
+                intArrayOf(
+                    Color.TRANSPARENT, Color.argb(45, 255, 215, 80), 
+                    Color.TRANSPARENT, Color.argb(30, 255, 195, 60),
+                    Color.TRANSPARENT, Color.argb(45, 255, 215, 80), 
+                    Color.TRANSPARENT
+                ), null
+            )
+            moonR = 20f * resources.displayMetrics.density
         }
 
         override fun onDraw(canvas: Canvas) {
@@ -181,50 +190,47 @@ object LauncherBackground {
             canvas.drawRect(0f, 0f, w, h, skyPaint)
             canvas.drawRect(0f, 0f, w, h, themeAuraPaint)
 
-            val d = resources.displayMetrics.density
             val moonX = w * 0.89f
             val moonY = h * 0.22f - parallaxY * 0.35f
-            val moonR = 20f * d
+
+            // Golden Sweep Rays (Rotating)
+            canvas.save()
+            canvas.translate(moonX, moonY)
+            canvas.rotate((phase * 45f) % 360f)
+            canvas.drawCircle(0f, 0f, moonR * 7f, goldenRayPaint)
+            canvas.restore()
 
             moonHaloOuter.shader = RadialGradient(
                 moonX, moonY, moonR * 9.5f,
-                intArrayOf(
-                    Color.argb(68, 210, 232, 255),
-                    Color.argb(26, 165, 205, 255),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.42f, 1f),
-                Shader.TileMode.CLAMP
+                intArrayOf(Color.argb(68, 210, 232, 255), Color.argb(26, 165, 205, 255), Color.TRANSPARENT),
+                floatArrayOf(0f, 0.42f, 1f), Shader.TileMode.CLAMP
             )
             canvas.drawCircle(moonX, moonY, moonR * 9.5f, moonHaloOuter)
 
             moonHaloInner.shader = RadialGradient(
                 moonX, moonY, moonR * 3.0f,
-                intArrayOf(
-                    Color.argb(155, 255, 252, 240),
-                    Color.argb(55, 215, 235, 255),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.45f, 1f),
-                Shader.TileMode.CLAMP
+                intArrayOf(Color.argb(155, 255, 252, 240), Color.argb(55, 215, 235, 255), Color.TRANSPARENT),
+                floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP
             )
             canvas.drawCircle(moonX, moonY, moonR * 3.0f, moonHaloInner)
 
             moonDiscPaint.shader = RadialGradient(
                 moonX - moonR * 0.25f, moonY - moonR * 0.25f, moonR * 1.2f,
                 intArrayOf(Color.rgb(255, 254, 245), Color.rgb(225, 236, 255)),
-                null,
-                Shader.TileMode.CLAMP
+                null, Shader.TileMode.CLAMP
             )
             canvas.drawCircle(moonX, moonY, moonR, moonDiscPaint)
             canvas.drawCircle(moonX - moonR * 0.32f, moonY - moonR * 0.18f, moonR * 0.22f, craterPaint)
             canvas.drawCircle(moonX + moonR * 0.28f, moonY + moonR * 0.24f, moonR * 0.16f, craterPaint)
 
             for (s in sparkles) {
-                val pulse = 0.25f + 0.75f * ((sin(phase * s.speed + s.offset) + 1f) * 0.5f)
+                // Chaotic Twinkling (Combining two Sine waves)
+                val erraticWave = sin(phase * s.speed + s.offset) * cos(phase * s.speed * 0.6f + s.offset)
+                val pulse = 0.3f + 0.7f * Math.abs(erraticWave)
+                
                 val sx = s.xRatio * w
                 val sy = s.yRatio * h - parallaxY * 0.25f
-                val r = s.sizePx * (0.65f + 0.45f * pulse)
+                val r = s.sizePx * (0.55f + 0.45f * pulse)
 
                 sparklePaint.color = LauncherUtils.withAlpha(s.tint, (pulse * 245).toInt())
                 drawFourPointSparkle(canvas, sx, sy, r)
