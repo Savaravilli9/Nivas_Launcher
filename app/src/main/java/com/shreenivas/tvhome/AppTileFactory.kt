@@ -116,17 +116,17 @@ object AppTileFactory {
 
         tile.setOnLongClickListener {
             AppActionDialog.show(
-                ctx = ctx,
-                label = label,
-                pkg = pkg,
-                isFavSection = isFavSection,
-                isFavorite = isFavorite,
-                canMoveLeft = true,
-                canMoveRight = true,
-                accent = lp.accentColor,
-                onToggleFav = { actions.onToggleFavorite(pkg, label) },
-                onMoveFav = { delta -> actions.onMoveFavorite(pkg, delta) },
-                onHideApp = { actions.onHideApp(pkg, label) }
+                ctx,
+                label,
+                pkg,
+                isFavSection,
+                isFavorite,
+                true,
+                true,
+                lp.accentColor,
+                { actions.onToggleFavorite(pkg, label) },
+                { delta -> actions.onMoveFavorite(pkg, delta) },
+                { actions.onHideApp(pkg, label) }
             )
             true
         }
