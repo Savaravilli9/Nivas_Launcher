@@ -21,15 +21,45 @@ import android.widget.Toast
 
 object WifiPanelBuilder {
 
+    @Suppress("DEPRECATION")
     fun build(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onRefresh: () -> Unit) {
         val wm = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val isWifiOn = try { wm?.isWifiEnabled ?: true } catch (_: Exception) { true }
+        val connectedSsid = getConnectedSsid(ctx, wm)
+        val info = try { wm?.connectionInfo } catch (_: Exception) { null }
+        val speedMbps = info?.linkSpeed ?: -1
+        val freq = info?.frequency ?: 0
 
-        // 1. Top Wi-Fi ON/OFF Toggle Row
+        // 1. CONNECTION TELEMETRY (Matching 2nd Video)
+        addSectionLabel(ctx, panel, "CONNECTION TELEMETRY")
+        val teleRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val statusVal = when {
+            !isWifiOn -> "Disabled"
+            connectedSsid != null -> "Active"
+            else -> "Ready"
+        }
+        val speedVal = when {
+            !isWifiOn -> "0 Mbps"
+            speedMbps > 0 -> "$speedMbps Mbps"
+            freq > 4900 -> "5.0 GHz"
+            freq > 2400 -> "2.4 GHz"
+            else -> "Standby"
+        }
+        teleRow.addView(
+            makeTelemetryCard(ctx, "📶", "Status", statusVal, if (connectedSsid != null) Color.rgb(46, 232, 138) else lp.accentColor),
+            LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(ctx, 8) }
+        )
+        teleRow.addView(
+            makeTelemetryCard(ctx, "⚡", "Speed", speedVal, lp.accentColor),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        panel.addView(teleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
+
+        // 2. Wi-Fi ON/OFF Card
         val toggleRow = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, 14), dp(ctx, 12), dp(ctx, 14), dp(ctx, 12))
+            setPadding(dp(ctx, 12), dp(ctx, 10), dp(ctx, 12), dp(ctx, 10))
             isFocusable = true
             isClickable = true
             background = glassCardBg(ctx, false, lp.accentColor)
@@ -37,14 +67,8 @@ object WifiPanelBuilder {
                 LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
                 v.background = glassCardBg(ctx, f, lp.accentColor)
             }
-            
             setOnClickListener {
-                @Suppress("DEPRECATION")
-                val changed = try {
-                    wm?.setWifiEnabled(!isWifiOn) ?: false
-                } catch (_: Exception) {
-                    false
-                }
+                val changed = try { wm?.setWifiEnabled(!isWifiOn) ?: false } catch (_: Exception) { false }
                 if (changed) {
                     panel.postDelayed({ onRefresh() }, 500L)
                 } else {
@@ -52,49 +76,40 @@ object WifiPanelBuilder {
                 }
             }
         }
-        toggleRow.addView(makeText(ctx, "Wi-Fi", 13.5f, Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
+        val wMid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        wMid.addView(makeText(ctx, "Wi-Fi", 12f, Color.WHITE, true))
+        wMid.addView(makeText(ctx, if (isWifiOn) "On" else "Off", 9f, Color.argb(185, 205, 225, 250), false))
+        toggleRow.addView(wMid, LinearLayout.LayoutParams(0, -2, 1f))
 
         val switchTrack = LinearLayout(ctx).apply {
             gravity = if (isWifiOn) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.START or Gravity.CENTER_VERTICAL
             setPadding(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3))
             background = GradientDrawable().apply {
-                setColor(if (isWifiOn) lp.accentColor else Color.argb(80, 255, 255, 255))
+                setColor(if (isWifiOn) lp.accentColor else Color.argb(75, 255, 255, 255))
                 cornerRadius = LauncherUtils.dpF(ctx, 14f)
             }
         }
         val switchThumb = View(ctx).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.WHITE)
-            }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) }
         }
-        switchTrack.addView(switchThumb, LinearLayout.LayoutParams(dp(ctx, 18), dp(ctx, 18)))
-        toggleRow.addView(switchTrack, LinearLayout.LayoutParams(dp(ctx, 44), dp(ctx, 24)))
-        panel.addView(toggleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 12) })
+        switchTrack.addView(switchThumb, LinearLayout.LayoutParams(dp(ctx, 16), dp(ctx, 16)))
+        toggleRow.addView(switchTrack, LinearLayout.LayoutParams(dp(ctx, 40), dp(ctx, 22)))
+        panel.addView(toggleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
 
-        // 2. Connected Network Section
-        val connectedSsid = getConnectedSsid(ctx, wm)
+        // 3. CONNECTED Network Card with Disconnect Button
         if (isWifiOn && connectedSsid != null) {
-            panel.addView(
-                makeText(ctx, "Connected network", 10f, Color.argb(190, 210, 230, 245), true),
-                LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6); leftMargin = dp(ctx, 4) }
-            )
-
-            @Suppress("DEPRECATION")
-            val info = wm?.connectionInfo
-            val speed = info?.linkSpeed ?: -1
-            val freq = info?.frequency ?: 0
-            val bandTxt = if (freq > 4900) "5 GHz" else if (freq > 2400) "2.4 GHz" else "Wi-Fi"
-            val statusSub = if (speed > 0) "Connected • $bandTxt • $speed Mbps" else "Connected • $bandTxt"
+            addSectionLabel(ctx, panel, "CONNECTED")
+            val channel = if (freq > 5000) ((freq - 5000) / 5) else if (freq > 2400) ((freq - 2407) / 5) else 36
+            val bandStr = if (freq > 4900) "5.0 GHz • Ch $channel" else "2.4 GHz • Ch $channel"
 
             val connCard = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(ctx, 12), dp(ctx, 10), dp(ctx, 12), dp(ctx, 10))
+                setPadding(dp(ctx, 12), dp(ctx, 10), dp(ctx, 10), dp(ctx, 10))
                 isFocusable = true
                 background = GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
-                    intArrayOf(Color.argb(85, 34, 155, 105), Color.argb(55, 20, 95, 65))
+                    intArrayOf(Color.argb(85, 32, 152, 104), Color.argb(55, 18, 88, 62))
                 ).apply {
                     cornerRadius = LauncherUtils.dpF(ctx, 14f)
                     setStroke(dp(ctx, 1), Color.rgb(46, 232, 138))
@@ -102,34 +117,42 @@ object WifiPanelBuilder {
                 setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f) }
                 setOnClickListener { openSystemWifi(ctx) }
             }
-            connCard.addView(makeText(ctx, "✓", 14f, Color.rgb(46, 232, 138), true).apply { setPadding(0, 0, dp(ctx, 10), 0) })
+            connCard.addView(makeText(ctx, "📶", 13f, Color.rgb(46, 232, 138), true).apply { setPadding(0, 0, dp(ctx, 8), 0) })
             val cMid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-            cMid.addView(makeText(ctx, connectedSsid, 11.5f, Color.WHITE, true))
-            cMid.addView(makeText(ctx, statusSub, 8.5f, Color.rgb(160, 245, 205), false))
+            cMid.addView(makeText(ctx, connectedSsid, 11f, Color.WHITE, true))
+            cMid.addView(makeText(ctx, "Encrypted • $bandStr", 8f, Color.rgb(165, 245, 205), false))
             connCard.addView(cMid, LinearLayout.LayoutParams(0, -2, 1f))
-            connCard.addView(makeText(ctx, "📶", 13f, Color.rgb(46, 232, 138), false))
-            panel.addView(connCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 14) })
-        }
 
-        // 3. Other Networks Header + Refresh Button
+            val discBtn = makeText(ctx, "Disconnect", 8.5f, Color.WHITE, true).apply {
+                setPadding(dp(ctx, 8), dp(ctx, 5), dp(ctx, 8), dp(ctx, 5))
+                background = GradientDrawable().apply {
+                    setColor(Color.argb(95, 255, 85, 105))
+                    setStroke(dp(ctx, 1), Color.argb(160, 255, 130, 145))
+                    cornerRadius = LauncherUtils.dpF(ctx, 8f)
+                }
+            }
+            connCard.addView(discBtn)
+            panel.addView(connCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
+        }
+        // 4. SAVED / NEARBY NETWORKS + Refresh
         if (isWifiOn) {
             val headRow = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(ctx, 4), 0, dp(ctx, 4), dp(ctx, 8))
+                setPadding(dp(ctx, 2), dp(ctx, 2), dp(ctx, 2), dp(ctx, 6))
             }
-            headRow.addView(makeText(ctx, "Other networks", 10.5f, Color.argb(200, 210, 225, 245), true))
+            headRow.addView(makeText(ctx, "SAVED NETWORKS", 9f, Color.argb(195, 200, 220, 250), true))
             headRow.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
-            val refBtn = makeText(ctx, "Refresh", 10.5f, lp.accentColor, true).apply {
+            val refBtn = makeText(ctx, "↻ Scan", 9f, lp.accentColor, true).apply {
                 isFocusable = true
-                setPadding(dp(ctx, 8), dp(ctx, 4), dp(ctx, 8), dp(ctx, 4))
+                setPadding(dp(ctx, 7), dp(ctx, 3), dp(ctx, 7), dp(ctx, 3))
                 background = glassCardBg(ctx, false, lp.accentColor)
                 setOnFocusChangeListener { v, f ->
                     LauncherUtils.applyFocusSpring(v, f, 1.05f, 3f)
                     v.background = glassCardBg(ctx, f, lp.accentColor)
                 }
                 setOnClickListener {
-                    Toast.makeText(ctx, "Scanning networks...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, "Scanning Wi-Fi...", Toast.LENGTH_SHORT).show()
                     onRefresh()
                 }
             }
@@ -137,19 +160,13 @@ object WifiPanelBuilder {
             panel.addView(headRow)
 
             loadRealWifi(ctx, panel, wm, connectedSsid, lp.accentColor)
-        } else {
-            val offMsg = makeText(ctx, "Turn on Wi-Fi to view available networks", 10f, Color.argb(170, 200, 220, 240), false).apply {
-                gravity = Gravity.CENTER
-                setPadding(0, dp(ctx, 24), 0, dp(ctx, 24))
-            }
-            panel.addView(offMsg, LinearLayout.LayoutParams(-1, -2))
         }
 
-        // 4. Bottom "More settings" Action Link
-        val moreBtn = makeText(ctx, "More settings", 11.5f, lp.accentColor, true).apply {
+        // 5. Bottom Settings Button
+        val moreBtn = makeText(ctx, "⚙  System Network Settings ›", 10.5f, lp.accentColor, true).apply {
             gravity = Gravity.CENTER
             isFocusable = true
-            setPadding(dp(ctx, 12), dp(ctx, 12), dp(ctx, 12), dp(ctx, 12))
+            setPadding(dp(ctx, 10), dp(ctx, 10), dp(ctx, 10), dp(ctx, 10))
             background = glassCardBg(ctx, false, lp.accentColor)
             setOnFocusChangeListener { v, f ->
                 LauncherUtils.applyFocusSpring(v, f, 1.03f, 4f)
@@ -157,8 +174,9 @@ object WifiPanelBuilder {
             }
             setOnClickListener { openSystemWifi(ctx) }
         }
-        panel.addView(moreBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 12); bottomMargin = dp(ctx, 6) })
+        panel.addView(moreBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8); bottomMargin = dp(ctx, 6) })
     }
+
     @Suppress("DEPRECATION")
     fun getConnectedSsid(ctx: Context, wm: WifiManager?): String? {
         try {
@@ -201,36 +219,34 @@ object WifiPanelBuilder {
             for (sr in results) {
                 val ssid = sr.SSID ?: continue
                 if (ssid.isEmpty() || !seen.add(ssid)) continue
-                val band = if (sr.frequency > 4900) "5 GHz" else "2.4 GHz"
+                val band = if (sr.frequency > 4900) "5.0 GHz" else "2.4 GHz"
                 val locked = sr.capabilities?.contains("WPA") == true || sr.capabilities?.contains("WEP") == true
                 val level = WifiManager.calculateSignalLevel(sr.level, 5)
-                addWifiRow(ctx, panel, ssid, "Signal $level/4 • $band", locked, accent)
-                if (++count >= 6) break
+                addWifiRow(ctx, panel, ssid, "Saved • $band • Signal $level/4", locked, accent)
+                if (++count >= 5) break
             }
 
             if (count == 0) {
-                val emptyHint = makeText(
-                    ctx,
-                    "Tap Refresh or More settings to connect",
-                    9.5f,
-                    Color.argb(175, 200, 220, 240),
-                    false
-                ).apply {
-                    gravity = Gravity.CENTER
-                    setPadding(0, dp(ctx, 14), 0, dp(ctx, 14))
-                }
-                panel.addView(emptyHint, LinearLayout.LayoutParams(-1, -2))
+                addWifiRow(ctx, panel, "Manage Saved Networks", "Tap to open Android TV Wi-Fi list", true, accent)
             }
         } catch (_: SecurityException) {
-            addWifiRow(ctx, panel, "Location permission needed", "Allow Location to scan nearby Wi-Fi", false, accent)
+            addWifiRow(ctx, panel, "Location Permission Needed", "Grant Location to scan Wi-Fi list", false, accent)
         }
+    }
+
+    private fun makeTelemetryCard(ctx: Context, icon: String, title: String, value: String, accent: Int) = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
+        background = glassCardBg(ctx, false, accent)
+        addView(makeText(ctx, "$icon  $title", 8.5f, Color.argb(185, 200, 220, 250), true))
+        addView(makeText(ctx, value, 11.5f, Color.WHITE, true).apply { setPadding(0, dp(ctx, 3), 0, 0) })
     }
 
     private fun addWifiRow(ctx: Context, panel: LinearLayout, ssid: String, sub: String, locked: Boolean, accent: Int) {
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, 12), dp(ctx, 10), dp(ctx, 12), dp(ctx, 10))
+            setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
             isFocusable = true
             background = glassCardBg(ctx, false, accent)
             setOnFocusChangeListener { v, f ->
@@ -239,12 +255,12 @@ object WifiPanelBuilder {
             }
             setOnClickListener { openSystemWifi(ctx) }
         }
-        card.addView(makeText(ctx, "📶", 13f, accent, true).apply { setPadding(0, 0, dp(ctx, 10), 0) })
+        card.addView(makeText(ctx, "📶", 12.5f, accent, true).apply { setPadding(0, 0, dp(ctx, 8), 0) })
         val mid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        mid.addView(makeText(ctx, ssid, 11f, Color.WHITE, true))
-        mid.addView(makeText(ctx, sub, 8.5f, Color.argb(185, 210, 230, 245), false))
+        mid.addView(makeText(ctx, ssid, 10.5f, Color.WHITE, true))
+        mid.addView(makeText(ctx, sub, 8f, Color.argb(180, 205, 225, 250), false))
         card.addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
-        if (locked) card.addView(makeText(ctx, "🔒", 11f, Color.WHITE, false))
+        if (locked) card.addView(makeText(ctx, "🔒", 10f, Color.WHITE, false))
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
     }
 
@@ -265,11 +281,16 @@ object WifiPanelBuilder {
     private fun glassCardBg(ctx: Context, foc: Boolean, accent: Int) = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
         if (foc) intArrayOf(Color.argb(120, 255, 255, 255), Color.argb(80, 255, 255, 255))
-        else intArrayOf(Color.argb(54, 255, 255, 255), Color.argb(28, 255, 255, 255))
+        else intArrayOf(Color.argb(56, 255, 255, 255), Color.argb(28, 255, 255, 255))
     ).apply {
-        cornerRadius = LauncherUtils.dpF(ctx, 14f)
-        setStroke(dp(ctx, if (foc) 2 else 1), if (foc) accent else Color.argb(65, 255, 255, 255))
+        cornerRadius = LauncherUtils.dpF(ctx, 13f)
+        setStroke(dp(ctx, if (foc) 2 else 1), if (foc) accent else Color.argb(70, 255, 255, 255))
     }
+
+    private fun addSectionLabel(ctx: Context, panel: LinearLayout, txt: String) = panel.addView(
+        makeText(ctx, txt, 8.5f, Color.argb(195, 195, 218, 250), true).apply { letterSpacing = 0.07f },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 2); bottomMargin = dp(ctx, 5) }
+    )
 
     private fun makeText(ctx: Context, txt: String, sz: Float, col: Int, bold: Boolean) = TextView(ctx).apply {
         text = txt
