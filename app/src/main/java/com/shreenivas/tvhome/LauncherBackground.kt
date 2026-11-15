@@ -160,11 +160,11 @@ object LauncherBackground {
                 Shader.TileMode.CLAMP
             )
 
-                        themeAuraPaint.shader = RadialGradient(
+            themeAuraPaint.shader = RadialGradient(
                 w * 0.32f, h * 0.42f, w * 0.65f,
                 intArrayOf(
                     LauncherUtils.withAlpha(accentColor, 88),
-                    LauncherUtils.withAlpha(grad[1], 45),
+                    LauncherUtils.withAlpha(grad.get[1], 45),
                     Color.TRANSPARENT
                 ),
                 floatArrayOf(0f, 0.52f, 1f),
