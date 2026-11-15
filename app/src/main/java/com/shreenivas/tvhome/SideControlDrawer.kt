@@ -47,7 +47,7 @@ class SideControlDrawer(
     private var activePanel: LinearLayout? = null
     private var brightnessPct = 85
 
-        fun toggle(mode: String) {
+    fun toggle(mode: String) {
         if (isOpen && mode == currentMode) close() else open(mode)
     }
 
@@ -77,7 +77,7 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() // Instantly recalculates grid to 4 cols seamlessly
+            onLiveRefresh() // Instantly recalculates grid columns smoothly
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             scrim.alpha = 0f
             scrim.animate().alpha(1f).setDuration(220L).start()
@@ -111,12 +111,11 @@ class SideControlDrawer(
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE
                 drawerLayout.visibility = View.GONE
-                onLiveRefresh() // Restores grid to full 6 cols seamlessly
+                onLiveRefresh() // Restores grid columns seamlessly
             }
             .start()
     }
     
-
     private fun setupDrawerSkeleton() {
         drawerLayout.removeAllViews()
         drawerLayout.setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
