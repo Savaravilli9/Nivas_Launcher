@@ -1,5 +1,6 @@
 package com.shreenivas.tvhome
 
+import android.animation.LayoutTransition
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
@@ -16,9 +17,7 @@ object AppGridManager {
 
     private var cachedApps: List<ResolveInfo>? = null
 
-    fun clearCache() {
-        cachedApps = null
-    }
+    fun clearCache() { cachedApps = null }
 
     fun createHeader(
         ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null
@@ -29,10 +28,7 @@ object AppGridManager {
             setPadding(dp(ctx, 2), dp(ctx, 4), dp(ctx, 2), dp(ctx, 8))
 
             addView(View(ctx).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (isFav) Color.rgb(255, 85, 130) else Color.rgb(88, 175, 255))
-                }
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (isFav) Color.rgb(255, 85, 130) else Color.rgb(88, 175, 255)) }
             }, LinearLayout.LayoutParams(dp(ctx, 8), dp(ctx, 8)).apply { rightMargin = dp(ctx, 8) })
 
             addView(TextView(ctx).apply {
@@ -45,9 +41,8 @@ object AppGridManager {
             if (!isFav && lp != null && onSortChanged != null) {
                 val sortPill = TextView(ctx).apply {
                     text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
-                    textSize = 10f; typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(Color.WHITE); setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
-                    isFocusable = true; background = badgeBg(ctx, false)
+                    textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+                    setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4)); isFocusable = true; background = badgeBg(ctx, false)
                     setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f); v.background = badgeBg(ctx, f) }
                     setOnClickListener {
                         lp.sortOrder = if (lp.sortOrder == "za") "az" else "za"
@@ -61,8 +56,7 @@ object AppGridManager {
             addView(TextView(ctx).apply {
                 tag = "count_tv"
                 text = "0 Apps"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.argb(220, 215, 235, 255))
-                setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
+                setTextColor(Color.argb(220, 215, 235, 255)); setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
                 background = badgeBg(ctx, false)
             })
         }
@@ -76,7 +70,6 @@ object AppGridManager {
     ) {
         val pm = ctx.packageManager
         val visibleApps = getInstalledApps(pm).filter { !lp.getHiddenApps().contains(it.activityInfo.packageName) }
-
         val byPkg = visibleApps.associateBy { it.activityInfo.packageName }
         val favOrder = lp.getOrderedFavorites()
         val favApps = favOrder.mapNotNull { byPkg[it] }
@@ -84,33 +77,37 @@ object AppGridManager {
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
         else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
-        favRow.removeAllViews()
-        appGrid.removeAllViews()
+        // Layout Transitions for Butter Smooth Column Rewrapping
+        val transition = LayoutTransition().apply {
+            setDuration(220L)
+            enableTransitionType(LayoutTransition.CHANGING)
+            setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
+        }
+        appGrid.layoutTransition = transition
+        favRow.layoutTransition = transition
 
-        // 1. DYNAMIC WIDTH MATH (No Overlaps!)
+        favRow.removeAllViews(); appGrid.removeAllViews()
+
+        // PERF Math: Prevent tiny dots and calculate exact wraps
         val screenW = ctx.resources.displayMetrics.widthPixels
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
-        val availableW = screenW - drawerW - dp(ctx, 64) // 64 is side padding
+        val sidePad = dp(ctx, 64)
+        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
+        val availableW = screenW - sidePad - drawerW
 
-        // Dynamic Columns based on drawer state
-        val targetCols = if (isDrawerOpen) {
-            val reduction = (lp.columns * (lp.panelWidthPct / 100f)).toInt()
-            maxOf(3, lp.columns - reduction)
-        } else {
-            lp.columns
-        }
-
-        // Each cell takes exact divided space
-        val cellW = availableW / targetCols
+        val gap = dp(ctx, 12)
+        val minTileW = dp(ctx, 95) // Prevents shrinking to dots!
         
-        val scale = when (lp.tileSize) {
-            "small" -> 0.65f
-            "large" -> 0.92f
-            else -> 0.78f
+        var targetCols = lp.columns
+        if (isDrawerOpen) {
+            val maxFittingCols = (availableW + gap) / (minTileW + gap)
+            targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
-        val actualTileW = (cellW * scale).toInt()
-        val actualTileH = (actualTileW * 0.85f).toInt()
-        val marginHorizontal = (cellW - actualTileW) / 2
+
+        val totalGapW = gap * (targetCols - 1)
+        val tileW = ((availableW - totalGapW) / targetCols).coerceAtLeast(minTileW)
+        
+        val heightFactor = when (lp.tileSize) { "small" -> 0.72f; "large" -> 0.94f; else -> 0.82f }
+        val tileH = (tileW * heightFactor).toInt()
 
         var focusTarget: View? = null
 
@@ -120,12 +117,9 @@ object AppGridManager {
             favCount.text = "${favApps.size} Apps"
             favApps.forEachIndexed { idx, info ->
                 val pkg = info.activityInfo.packageName
-                val tile = AppTileFactory.create(ctx, pm, lp, info, true, true, actualTileW, actualTileH, actions)
+                val tile = AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions)
                 if (restorePkg == pkg || (restorePkg == null && idx == 0)) focusTarget = tile
-                
-                favRow.addView(tile, LinearLayout.LayoutParams(actualTileW, actualTileH).apply {
-                    leftMargin = marginHorizontal; rightMargin = marginHorizontal
-                })
+                favRow.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply { if (idx < favApps.lastIndex) rightMargin = gap })
             }
         }
 
@@ -135,15 +129,18 @@ object AppGridManager {
 
         sortedAll.forEachIndexed { idx, info ->
             if (idx % targetCols == 0) {
-                rowLayout = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
-                appGrid.addView(rowLayout, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 16) }) // Vertical gap
+                rowLayout = LinearLayout(ctx).apply { 
+                    orientation = LinearLayout.HORIZONTAL; clipChildren = false
+                    layoutTransition = transition 
+                }
+                appGrid.addView(rowLayout, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = gap })
             }
             val pkg = info.activityInfo.packageName
-            val tile = AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(pkg), actualTileW, actualTileH, actions)
+            val tile = AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(pkg), tileW, tileH, actions)
             if (focusTarget == null && (restorePkg == pkg || (restorePkg == null && idx == 0))) focusTarget = tile
             
-            rowLayout?.addView(tile, LinearLayout.LayoutParams(actualTileW, actualTileH).apply {
-                leftMargin = marginHorizontal; rightMargin = marginHorizontal
+            rowLayout?.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
+                if ((idx % targetCols) < targetCols - 1) rightMargin = gap
             })
         }
 
@@ -156,8 +153,7 @@ object AppGridManager {
         LauncherUtils.addApps(pm, "android.intent.category.LEANBACK_LAUNCHER", map)
         LauncherUtils.addApps(pm, "android.intent.category.LAUNCHER", map)
         val result = map.values.toList()
-        cachedApps = result
-        return result
+        cachedApps = result; return result
     }
 
     private fun badgeBg(ctx: Context, focused: Boolean) = GradientDrawable().apply {
@@ -165,6 +161,5 @@ object AppGridManager {
         setStroke(dp(ctx, 1), Color.argb(if (focused) 180 else 80, 255, 255, 255))
         cornerRadius = LauncherUtils.dpF(ctx, 14f)
     }
-
     private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
 }
