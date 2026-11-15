@@ -116,11 +116,11 @@ object AppTileFactory {
 
         tile.setOnLongClickListener {
             AppActionDialog.show(
-                ctx,
-                label,
-                pkg,
-                isFavSection,
-                isFavorite,
+                ctx = ctx,
+                label = label,
+                pkg = pkg,
+                isFavSection = isFavSection,
+                isFavorite = isFavorite,
                 canMoveLeft = true,
                 canMoveRight = true,
                 accent = lp.accentColor,
