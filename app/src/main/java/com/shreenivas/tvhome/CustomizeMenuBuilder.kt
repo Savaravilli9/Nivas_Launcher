@@ -36,15 +36,24 @@ object CustomizeMenuBuilder {
         activeSubBoxRef = null
         lastFocusedTag = "acc_$closedKey"
 
-        val savedTransition = panel?.layoutTransition
-        panel?.layoutTransition = null
-        parentCard?.requestFocus()
         if (box != null && box.parent == panel) {
-            panel?.removeView(box)
+            box.animate()
+                .alpha(0f)
+                .scaleY(0.85f)
+                .setDuration(150L)
+                .setInterpolator(LauncherUtils.SILKY_EASE)
+                .withEndAction {
+                    panel.removeView(box)
+                    parentCard?.requestFocus()
+                    onClosedCallback?.invoke()
+                }
+                .start()
+        } else {
+            parentCard?.requestFocus()
+            onClosedCallback?.invoke()
         }
-        panel?.post { panel.layoutTransition = savedTransition }
-        onClosedCallback?.invoke()
     }
+
 
     fun closeSubMenuAndNavigate(moveDown: Boolean) {
         val closedKey = openSubMenu
