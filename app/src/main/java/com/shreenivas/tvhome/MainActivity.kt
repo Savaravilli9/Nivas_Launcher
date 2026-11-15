@@ -312,7 +312,7 @@ class MainActivity : Activity() {
         contentArea.addView(drawerLayout, dpParams)
 
         sideDrawer = SideControlDrawer(
-            this, drawerLayout, drawerScrim, lp,
+            this, drawerLayout, drawerScrim, mainPage, lp, // ఇక్కడ కొత్తగా mainPage ని ఆర్గ్యుమెంట్ గా పంపుతున్నాం
             ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker
         )
     }
