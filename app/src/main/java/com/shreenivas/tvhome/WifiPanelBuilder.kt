@@ -30,7 +30,6 @@ object WifiPanelBuilder {
         val speedMbps = info?.linkSpeed ?: -1
         val freq = info?.frequency ?: 0
 
-        // 1. CONNECTION TELEMETRY (Matching 2nd Video)
         addSectionLabel(ctx, panel, "CONNECTION TELEMETRY")
         val teleRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         val statusVal = when {
@@ -55,7 +54,6 @@ object WifiPanelBuilder {
         )
         panel.addView(teleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
 
-        // 2. Wi-Fi ON/OFF Card
         val toggleRow = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -96,7 +94,6 @@ object WifiPanelBuilder {
         toggleRow.addView(switchTrack, LinearLayout.LayoutParams(dp(ctx, 40), dp(ctx, 22)))
         panel.addView(toggleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
 
-        // 3. CONNECTED Network Card with Disconnect Button
         if (isWifiOn && connectedSsid != null) {
             addSectionLabel(ctx, panel, "CONNECTED")
             val channel = if (freq > 5000) ((freq - 5000) / 5) else if (freq > 2400) ((freq - 2407) / 5) else 36
@@ -134,7 +131,7 @@ object WifiPanelBuilder {
             connCard.addView(discBtn)
             panel.addView(connCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
         }
-        // 4. SAVED / NEARBY NETWORKS + Refresh
+
         if (isWifiOn) {
             val headRow = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -162,7 +159,6 @@ object WifiPanelBuilder {
             loadRealWifi(ctx, panel, wm, connectedSsid, lp.accentColor)
         }
 
-        // 5. Bottom Settings Button
         val moreBtn = makeText(ctx, "⚙  System Network Settings ›", 10.5f, lp.accentColor, true).apply {
             gravity = Gravity.CENTER
             isFocusable = true
@@ -176,7 +172,6 @@ object WifiPanelBuilder {
         }
         panel.addView(moreBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8); bottomMargin = dp(ctx, 6) })
     }
-
     @Suppress("DEPRECATION")
     fun getConnectedSsid(ctx: Context, wm: WifiManager?): String? {
         try {
@@ -209,29 +204,38 @@ object WifiPanelBuilder {
         ctx: Context, panel: LinearLayout, wm: WifiManager?,
         connectedSsid: String?, accent: Int
     ) {
-        try {
-            wm?.startScan()
-            val results: List<ScanResult> = wm?.scanResults ?: emptyList()
-            val seen = HashSet<String>()
-            if (connectedSsid != null) seen.add(connectedSsid)
+        // Run scan on background thread to prevent UI freezing
+        Thread {
+            try {
+                wm?.startScan()
+                val results: List<ScanResult> = wm?.scanResults ?: emptyList()
+                
+                // Update UI on main thread safely
+                panel.post {
+                    val seen = HashSet<String>()
+                    if (connectedSsid != null) seen.add(connectedSsid)
 
-            var count = 0
-            for (sr in results) {
-                val ssid = sr.SSID ?: continue
-                if (ssid.isEmpty() || !seen.add(ssid)) continue
-                val band = if (sr.frequency > 4900) "5.0 GHz" else "2.4 GHz"
-                val locked = sr.capabilities?.contains("WPA") == true || sr.capabilities?.contains("WEP") == true
-                val level = WifiManager.calculateSignalLevel(sr.level, 5)
-                addWifiRow(ctx, panel, ssid, "Saved • $band • Signal $level/4", locked, accent)
-                if (++count >= 5) break
-            }
+                    var count = 0
+                    for (sr in results) {
+                        val ssid = sr.SSID ?: continue
+                        if (ssid.isEmpty() || !seen.add(ssid)) continue
+                        val band = if (sr.frequency > 4900) "5.0 GHz" else "2.4 GHz"
+                        val locked = sr.capabilities?.contains("WPA") == true || sr.capabilities?.contains("WEP") == true
+                        val level = WifiManager.calculateSignalLevel(sr.level, 5)
+                        addWifiRow(ctx, panel, ssid, "Saved • $band • Signal $level/4", locked, accent)
+                        if (++count >= 5) break
+                    }
 
-            if (count == 0) {
-                addWifiRow(ctx, panel, "Manage Saved Networks", "Tap to open Android TV Wi-Fi list", true, accent)
+                    if (count == 0) {
+                        addWifiRow(ctx, panel, "Manage Saved Networks", "Tap to open Android TV Wi-Fi list", true, accent)
+                    }
+                }
+            } catch (_: SecurityException) {
+                panel.post {
+                    addWifiRow(ctx, panel, "Location Permission Needed", "Grant Location to scan Wi-Fi list", false, accent)
+                }
             }
-        } catch (_: SecurityException) {
-            addWifiRow(ctx, panel, "Location Permission Needed", "Grant Location to scan Wi-Fi list", false, accent)
-        }
+        }.start()
     }
 
     private fun makeTelemetryCard(ctx: Context, icon: String, title: String, value: String, accent: Int) = LinearLayout(ctx).apply {
