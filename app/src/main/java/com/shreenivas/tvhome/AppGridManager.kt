@@ -1,11 +1,10 @@
 package com.shreenivas.tvhome
 
 import android.content.Context
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
@@ -14,78 +13,79 @@ import android.widget.TextView
 import java.util.Locale
 
 object AppGridManager {
+
     private var cachedApps: List<ResolveInfo>? = null
-    private val iconCache = HashMap<String, Drawable>()
-    private val labelCache = HashMap<String, String>()
 
     fun clearCache() {
         cachedApps = null
-        iconCache.clear()
-        labelCache.clear()
     }
-
-    fun getAppLabel(pkg: String): String = labelCache[pkg] ?: pkg
 
     fun createHeader(
         ctx: Context,
         title: String,
-        isFavorite: Boolean,
+        isFav: Boolean,
         lp: LauncherPreferences? = null,
-        onSortToggle: (() -> Unit)? = null
+        onSortChanged: (() -> Unit)? = null
     ): LinearLayout {
-        val header = LinearLayout(ctx).apply {
+        return LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, 4), 0, dp(ctx, 4), dp(ctx, 8))
-        }
+            setPadding(dp(ctx, 2), dp(ctx, 4), dp(ctx, 2), dp(ctx, 8))
 
-        val titleTv = TextView(ctx).apply {
-            text = title
-            textSize = 11.5f
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-            setTextColor(if (isFavorite) Color.rgb(120, 210, 255) else Color.argb(225, 225, 240, 255))
-        }
-        header.addView(titleTv)
-        header.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+            addView(
+                View(ctx).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(if (isFav) Color.rgb(255, 85, 130) else Color.rgb(88, 175, 255))
+                    }
+                },
+                LinearLayout.LayoutParams(dp(ctx, 8), dp(ctx, 8)).apply { rightMargin = dp(ctx, 8) }
+            )
 
-        if (!isFavorite && lp != null && onSortToggle != null) {
-            val sortBtn = TextView(ctx).apply {
-                text = if (lp.isSortAscending) "⇅  A-Z ORDER" else "⇅  Z-A ORDER"
+            addView(TextView(ctx).apply {
+                text = title
+                textSize = 11.5f
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = 0.08f
+                setTextColor(Color.argb(235, 225, 238, 255))
+            })
+
+            addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+
+            if (!isFav && lp != null && onSortChanged != null) {
+                val sortPill = TextView(ctx).apply {
+                    text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
+                    textSize = 10f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
+                    isFocusable = true
+                    background = badgeBg(ctx, false)
+                    setOnFocusChangeListener { v, f ->
+                        LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f)
+                        v.background = badgeBg(ctx, f)
+                    }
+                    setOnClickListener {
+                        lp.sortOrder = if (lp.sortOrder == "za") "az" else "za"
+                        text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
+                        onSortChanged()
+                    }
+                }
+                addView(sortPill, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(ctx, 8) })
+            }
+
+            addView(TextView(ctx).apply {
+                tag = "count_tv"
+                text = "0 Apps"
                 textSize = 10f
                 typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = 0.05f
-                setTextColor(Color.WHITE)
-                setPadding(dp(ctx, 12), dp(ctx, 5), dp(ctx, 12), dp(ctx, 5))
-                isFocusable = true
-                isClickable = true
-                background = chipBg(ctx, false, lp.accentColor)
-                setOnFocusChangeListener { v, f ->
-                    LauncherUtils.applyFocusSpring(v, f, 1.06f, 4f)
-                    v.background = chipBg(ctx, f, lp.accentColor)
-                }
-                setOnClickListener {
-                    lp.isSortAscending = !lp.isSortAscending
-                    text = if (lp.isSortAscending) "⇅  A-Z ORDER" else "⇅  Z-A ORDER"
-                    onSortToggle()
-                }
-            }
-            header.addView(sortBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(ctx, 10) })
+                setTextColor(Color.argb(220, 215, 235, 255))
+                setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
+                background = badgeBg(ctx, false)
+            })
         }
-
-        val countTv = TextView(ctx).apply {
-            tag = "count_tv"
-            textSize = 10.5f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.argb(210, 230, 240, 255))
-            setPadding(dp(ctx, 10), dp(ctx, 4), dp(ctx, 10), dp(ctx, 4))
-            background = chipBg(ctx, false, Color.WHITE)
-        }
-        header.addView(countTv)
-        return header
     }
-
-    fun populate(
+        fun populate(
         ctx: Context,
         lp: LauncherPreferences,
         favSection: LinearLayout,
@@ -97,103 +97,116 @@ object AppGridManager {
         restorePkg: String?,
         actions: AppTileFactory.TileActions
     ) {
-        appGrid.removeAllViews()
-        favRow.removeAllViews()
-
         val pm = ctx.packageManager
-        if (cachedApps == null) {
-            val unique = LinkedHashMap<String, ResolveInfo>()
-            LauncherUtils.addApps(pm, Intent.CATEGORY_LEANBACK_LAUNCHER, unique)
-            LauncherUtils.addApps(pm, Intent.CATEGORY_LAUNCHER, unique)
-            val list = ArrayList(unique.values)
-            for (app in list) {
-                val pkg = app.activityInfo.packageName
-                labelCache[pkg] = app.loadLabel(pm).toString()
-                iconCache[pkg] = app.loadIcon(pm)
-            }
-            cachedApps = list
-        }
+        val allList = getInstalledApps(pm)
         val hiddenSet = lp.getHiddenApps()
-        val visibleApps = (cachedApps ?: emptyList()).filter { !hiddenSet.contains(it.activityInfo.packageName) }
+        val visibleApps = allList.filter { !hiddenSet.contains(it.activityInfo.packageName) }
 
-        val comparator = Comparator<ResolveInfo> { a, b ->
-            val la = labelCache[a.activityInfo.packageName]?.lowercase(Locale.ROOT) ?: ""
-            val lb = labelCache[b.activityInfo.packageName]?.lowercase(Locale.ROOT) ?: ""
-            if (lp.isSortAscending) la.compareTo(lb) else lb.compareTo(la)
-        }
-        val allApps = visibleApps.sortedWith(comparator)
-
-        // Build Favorites in exact user-defined custom order
-        val orderedFavPkgs = lp.getOrderedFavorites()
-        val appByPkg = visibleApps.associateBy { it.activityInfo.packageName }
-        val favApps = orderedFavPkgs.mapNotNull { appByPkg[it] }
-
-        val sizeFactor = when (lp.tileSize) { "small" -> 0.85f; "large" -> 1.15f; else -> 1.0f }
-        val effectiveCols = when (lp.tileSize) {
-            "small" -> (lp.columns + 1).coerceAtMost(8)
-            "large" -> (lp.columns - 1).coerceAtLeast(4)
-            else -> lp.columns
+        val byPkg = HashMap<String, ResolveInfo>()
+        for (item in visibleApps) {
+            byPkg[item.activityInfo.packageName] = item
         }
 
-        val edgePad = dp(ctx, 10)
-        val availW = ctx.resources.displayMetrics.widthPixels - dp(ctx, 72) - (edgePad * 2)
-        val gap = dp(ctx, 16)
-        val tileW = (availW - (gap * (effectiveCols - 1))) / effectiveCols
-        val tileH = (tileW * 0.74f * sizeFactor).toInt()
-        var firstFocusTarget: View? = null
+        val favOrder = lp.getOrderedFavorites()
+        val favSet = favOrder.toSet()
+        val favApps = favOrder.mapNotNull { byPkg[it] }
 
-        favSection.visibility = View.VISIBLE
-        if (favApps.isEmpty()) {
-            favRow.visibility = View.GONE
-            favCount.text = "Long-press any app to add"
+        val sortedAll = if (lp.sortOrder == "za") {
+            visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
         } else {
-            favRow.visibility = View.VISIBLE
-            favRow.setPadding(edgePad, edgePad / 2, edgePad, edgePad / 2)
-            favCount.text = "${favApps.size} ${if (favApps.size == 1) "App" else "Apps"}"
-            favApps.forEachIndexed { i, app ->
-                val pkg = app.activityInfo.packageName
-                val tile = AppTileFactory.create(
-                    ctx, pm, app, labelCache[pkg], iconCache[pkg],
-                    true, i, favApps.size, lp.accentColor, lp.badgeMode, lp.tileShape, lp.tileColor, lp.tileSize, tileH, actions
-                )
-                val tp = LinearLayout.LayoutParams(tileW, tileH).apply { if (i < favApps.lastIndex) rightMargin = gap }
-                favRow.addView(tile, tp)
-                if (i == 0) firstFocusTarget = tile
-            }
+            visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
         }
 
-        allCount.text = "${allApps.size} ${if (allApps.size == 1) "Apps" else "Apps"}"
-        for (start in allApps.indices step effectiveCols) {
-            val row = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false
-                setPadding(edgePad, edgePad / 2, edgePad, edgePad / 2)
-            }
-            appGrid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
+        favRow.removeAllViews()
+        appGrid.removeAllViews()
 
-            val end = minOf(start + effectiveCols, allApps.size)
-            for (i in start until end) {
-                val app = allApps[i]
-                val pkg = app.activityInfo.packageName
-                val favIdx = favApps.indexOfFirst { it.activityInfo.packageName == pkg }
+        val cols = lp.columns.coerceIn(4, 8)
+        val screenW = ctx.resources.displayMetrics.widthPixels
+        val sidePad = dp(ctx, 64)
+        val gap = dp(ctx, 12)
+        val tileW = ((screenW - sidePad - (gap * (cols - 1))) / cols).coerceAtLeast(dp(ctx, 95))
+
+        val heightFactor = when (lp.tileSize) {
+            "small" -> 0.72f
+            "large" -> 0.94f
+            else -> 0.82f
+        }
+        val tileH = (tileW * heightFactor).toInt()
+
+        var focusTarget: View? = null
+
+        if (favApps.isEmpty()) {
+            favSection.visibility = View.GONE
+        } else {
+            favSection.visibility = View.VISIBLE
+            favCount.text = "${favApps.size} Apps"
+            favApps.forEachIndexed { idx, info ->
+                val pkg = info.activityInfo.packageName
                 val tile = AppTileFactory.create(
-                    ctx, pm, app, labelCache[pkg], iconCache[pkg],
-                    favIdx >= 0, favIdx, favApps.size, lp.accentColor, lp.badgeMode, lp.tileShape, lp.tileColor, lp.tileSize, tileH, actions
+                    ctx, pm, lp, info,
+                    isFavSection = true,
+                    isFavorite = true,
+                    tileWidth = tileW,
+                    tileHeight = tileH,
+                    actions = actions
                 )
-                val tp = LinearLayout.LayoutParams(tileW, tileH).apply { if (i < end - 1) rightMargin = gap }
-                row.addView(tile, tp)
-                if (restorePkg == pkg || (firstFocusTarget == null && start == 0 && i == 0)) {
-                    firstFocusTarget = tile
+                if (restorePkg == pkg || (restorePkg == null && idx == 0)) {
+                    focusTarget = tile
                 }
+                favRow.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
+                    if (idx < favApps.lastIndex) rightMargin = gap
+                })
             }
         }
 
-        if (shouldRequestFocus) firstFocusTarget?.post { firstFocusTarget?.requestFocus() }
+        allCount.text = "${sortedAll.size} Apps"
+        var rowLayout: LinearLayout? = null
+        sortedAll.forEachIndexed { idx, info ->
+            if (idx % cols == 0) {
+                rowLayout = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    clipChildren = false
+                }
+                appGrid.addView(rowLayout, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = gap
+                })
+            }
+            val pkg = info.activityInfo.packageName
+            val tile = AppTileFactory.create(
+                ctx, pm, lp, info,
+                isFavSection = false,
+                isFavorite = favSet.contains(pkg),
+                tileWidth = tileW,
+                tileHeight = tileH,
+                actions = actions
+            )
+            if (focusTarget == null && (restorePkg == pkg || (restorePkg == null && idx == 0))) {
+                focusTarget = tile
+            }
+            rowLayout?.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
+                if ((idx % cols) < cols - 1) rightMargin = gap
+            })
+        }
+
+        if (shouldRequestFocus) {
+            focusTarget?.post { focusTarget?.requestFocus() }
+        }
     }
 
-    private fun chipBg(ctx: Context, focused: Boolean, accent: Int) = GradientDrawable().apply {
-        setColor(if (focused) Color.argb(90, 255, 255, 255) else Color.argb(36, 255, 255, 255))
+    private fun getInstalledApps(pm: PackageManager): List<ResolveInfo> {
+        cachedApps?.let { return it }
+        val map = LinkedHashMap<String, ResolveInfo>()
+        LauncherUtils.addApps(pm, "android.intent.category.LEANBACK_LAUNCHER", map)
+        LauncherUtils.addApps(pm, "android.intent.category.LAUNCHER", map)
+        val result = map.values.toList()
+        cachedApps = result
+        return result
+    }
+
+    private fun badgeBg(ctx: Context, focused: Boolean) = GradientDrawable().apply {
+        setColor(if (focused) Color.argb(95, 255, 255, 255) else Color.argb(48, 22, 34, 74))
+        setStroke(dp(ctx, 1), Color.argb(if (focused) 180 else 80, 255, 255, 255))
         cornerRadius = LauncherUtils.dpF(ctx, 14f)
-        setStroke(dp(ctx, if (focused) 2 else 1), if (focused) accent else Color.argb(55, 255, 255, 255))
     }
 
     private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
