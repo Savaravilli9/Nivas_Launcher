@@ -132,7 +132,7 @@ object LauncherBackground {
         }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            super.onSizeChanged(w, h, oldw: Int, oldh)
+            super.onSizeChanged(w, h, oldw, oldh)
             if (w <= 0 || h <= 0) return
             buildShaders(w, h)
 
@@ -152,6 +152,7 @@ object LauncherBackground {
         private fun buildShaders(w: Int, h: Int) {
             if (w <= 0 || h <= 0) return
             val grad = TileThemePalette.getWallpaperGradient(themeKey)
+            val midColor = grad.elementAt(1)
 
             skyPaint.shader = LinearGradient(
                 0f, 0f, w.toFloat(), h.toFloat(),
@@ -164,7 +165,7 @@ object LauncherBackground {
                 w * 0.32f, h * 0.42f, w * 0.65f,
                 intArrayOf(
                     LauncherUtils.withAlpha(accentColor, 88),
-                    LauncherUtils.withAlpha(grad.get[1], 45),
+                    LauncherUtils.withAlpha(midColor, 45),
                     Color.TRANSPARENT
                 ),
                 floatArrayOf(0f, 0.52f, 1f),
@@ -177,11 +178,9 @@ object LauncherBackground {
             val h = height.toFloat()
             if (w <= 0f || h <= 0f) return
 
-            // 1. Rich Theme Sky Gradient
             canvas.drawRect(0f, 0f, w, h, skyPaint)
             canvas.drawRect(0f, 0f, w, h, themeAuraPaint)
 
-            // 2. Full Moon & Silvery Moonlight Spread (Top-Right Sky)
             val d = resources.displayMetrics.density
             val moonX = w * 0.89f
             val moonY = h * 0.22f - parallaxY * 0.35f
@@ -221,7 +220,6 @@ object LauncherBackground {
             canvas.drawCircle(moonX - moonR * 0.32f, moonY - moonR * 0.18f, moonR * 0.22f, craterPaint)
             canvas.drawCircle(moonX + moonR * 0.28f, moonY + moonR * 0.24f, moonR * 0.16f, craterPaint)
 
-            // 3. Randomized Sizes of 4-Point Sparkling Stars (✦ ✨)
             for (s in sparkles) {
                 val pulse = 0.25f + 0.75f * ((sin(phase * s.speed + s.offset) + 1f) * 0.5f)
                 val sx = s.xRatio * w
