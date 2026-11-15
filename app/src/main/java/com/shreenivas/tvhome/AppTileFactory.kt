@@ -5,14 +5,16 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
-import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 
 object AppTileFactory {
 
@@ -25,85 +27,143 @@ object AppTileFactory {
     fun create(
         ctx: Context,
         pm: PackageManager,
-        app: ResolveInfo,
-        cachedLabel: String?,
-        cachedIcon: Drawable?,
-        isFav: Boolean,
-        favIndex: Int,
-        favTotal: Int,
-        accentColor: Int,
-        badgeMode: String,
-        tileShape: String,
-        tileColor: String,
-        tileSize: String,
+        lp: LauncherPreferences,
+        info: ResolveInfo,
+        isFavSection: Boolean,
+        isFavorite: Boolean,
+        tileWidth: Int,
         tileHeight: Int,
         actions: TileActions
-    ): GlowTileLayout {
-        val tile = GlowTileLayout(ctx).apply {
+    ): View {
+        val pkg = info.activityInfo.packageName
+        val label = info.loadLabel(pm).toString()
+        val shapeMode = lp.tileShape
+        val themeKey = lp.tileColor
+        val badgeMode = lp.badgeMode
+
+        val tile = GlowTileLayout(ctx, shapeMode, lp.accentColor).apply {
+            tag = if (isFavSection) "fav_$pkg" else "all_$pkg"
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
             isFocusable = true
             isClickable = true
-            setStyle(accentColor, tileShape, tileColor)
+            background = buildTileDrawable(ctx, shapeMode, themeKey, false, lp.accentColor, tileHeight)
         }
 
-        val scaleMult = when (tileSize) { "small" -> 0.85f; "large" -> 1.18f; else -> 1.0f }
-
-        if (badgeMode != "none" || isFav) {
-            val badge = TextView(ctx).apply {
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f * scaleMult)
-                when (badgeMode) {
-                    "heart" -> { text = if (isFav) "♥" else "♡"; setTextColor(if (isFav) Color.rgb(255, 95, 130) else Color.argb(130, 255, 255, 255)) }
-                    "blue" -> { text = "●"; setTextColor(if (isFav) Color.rgb(92, 184, 255) else Color.argb(120, 92, 184, 255)) }
-                    else -> { text = if (isFav) "★" else "☆"; setTextColor(if (isFav) Color.rgb(255, 200, 42) else Color.argb(115, 255, 255, 255)) }
-                }
-            }
-            tile.addView(badge, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-                topMargin = LauncherUtils.dp(ctx, 8); rightMargin = LauncherUtils.dp(ctx, 10)
-            })
-        }
-
-        val isHeart = tileShape == "heart"
-        val inner = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            val sidePad = LauncherUtils.dp(ctx, if (isHeart) 20 else 8)
-            val botPad = LauncherUtils.dp(ctx, if (isHeart) 18 else 8)
-            setPadding(sidePad, LauncherUtils.dp(ctx, 12), sidePad, botPad)
-        }
-
-        val iconSize = (tileHeight * (if (isHeart) 0.36f else 0.44f)).toInt().coerceAtLeast(LauncherUtils.dp(ctx, 32))
+        val iconWrap = FrameLayout(ctx)
+        val iconPx = (tileHeight * if (shapeMode == "circle" || shapeMode == "heart") 0.36f else 0.42f).toInt()
         val icon = ImageView(ctx).apply {
-            setImageDrawable(cachedIcon ?: app.loadIcon(pm))
+            setImageDrawable(info.loadIcon(pm))
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
-        inner.addView(icon, LinearLayout.LayoutParams(iconSize, iconSize).apply { bottomMargin = LauncherUtils.dp(ctx, if (isHeart) 5 else 8) })
+        iconWrap.addView(icon, FrameLayout.LayoutParams(iconPx, iconPx, Gravity.CENTER))
 
-        val appTitle = cachedLabel ?: app.loadLabel(pm).toString()
-        val finalTextSp = ((if (isHeart) 11.5f else 14f) * scaleMult).coerceIn(10.5f, 18.5f)
-        val label = TextView(ctx).apply {
-            text = appTitle; setTextSize(TypedValue.COMPLEX_UNIT_SP, finalTextSp); typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE); setShadowLayer(3f, 0f, 1.5f, Color.argb(170, 0, 0, 0))
-            gravity = Gravity.CENTER; isSingleLine = true; ellipsize = TextUtils.TruncateAt.END
+        val badgeInfo = resolveBadgeVector(badgeMode, isFavorite)
+        if (badgeInfo != null) {
+            val badgeSize = dp(ctx, 20)
+            val badgeContainer = FrameLayout(ctx).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.argb(190, 14, 22, 52))
+                    setStroke(dp(ctx, 1), badgeInfo.second)
+                }
+            }
+            badgeContainer.addView(
+                VectorIconView(ctx, badgeInfo.first, badgeInfo.second),
+                FrameLayout.LayoutParams(dp(ctx, 11), dp(ctx, 11), Gravity.CENTER)
+            )
+            iconWrap.addView(
+                badgeContainer,
+                FrameLayout.LayoutParams(badgeSize, badgeSize, Gravity.TOP or Gravity.END).apply {
+                    topMargin = dp(ctx, 2)
+                    rightMargin = dp(ctx, 2)
+                }
+            )
         }
-        inner.addView(label, LinearLayout.LayoutParams(-1, -2))
-        tile.addView(inner, FrameLayout.LayoutParams(-1, -1))
+        tile.addView(iconWrap, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        val pkg = app.activityInfo.packageName
+        val title = TextView(ctx).apply {
+            text = label
+            textSize = if (shapeMode == "circle" || shapeMode == "heart") 11f else 12.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+            setShadowLayer(4f, 0f, 1.5f, Color.argb(175, 0, 0, 0))
+            setPadding(dp(ctx, 4), dp(ctx, 4), dp(ctx, 4), dp(ctx, 2))
+        }
+        tile.addView(title, LinearLayout.LayoutParams(-1, -2))
+
+        tile.setOnFocusChangeListener { v, focused ->
+            LauncherUtils.applyFocusSpring(v, focused, 1.08f, 12f)
+            tile.setGlowFocused(focused)
+            v.background = buildTileDrawable(ctx, shapeMode, themeKey, focused, lp.accentColor, tileHeight)
+        }
+
         tile.setOnClickListener {
-            val launch = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
-            if (launch != null) ctx.startActivity(launch)
+            val launch = pm.getLaunchIntentForPackage(pkg)
+            if (launch != null) {
+                ctx.startActivity(launch)
+            } else {
+                Toast.makeText(ctx, "Cannot open $label", Toast.LENGTH_SHORT).show()
+            }
         }
 
         tile.setOnLongClickListener {
-            AppActionDialog.show(
-                ctx, pkg, appTitle, isFav,
-                canMoveLeft = isFav && favIndex > 0,
-                canMoveRight = isFav && favIndex >= 0 && favIndex < favTotal - 1,
-                accent = accentColor,
-                onToggleFav = { actions.onToggleFavorite(pkg, appTitle) },
-                onMoveFav = { delta -> actions.onMoveFavorite(pkg, delta) },
-                onHideApp = { actions.onHideApp(pkg, appTitle) }
+            AppActionDialog.show(ctx, label, isFavSection, isFavorite, lp.accentColor,
+                onToggleFav = { actions.onToggleFavorite(pkg, label) },
+                onMoveLeft = { actions.onMoveFavorite(pkg, -1) },
+                onMoveRight = { actions.onMoveFavorite(pkg, 1) },
+                onHideApp = { actions.onHideApp(pkg, label) }
             )
             true
         }
+
+        tile.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_MENU) {
+                tile.performLongClick()
+                true
+            } else {
+                false
+            }
+        }
+
         return tile
     }
+
+    private fun resolveBadgeVector(badgeMode: String, isFav: Boolean): Pair<String, Int>? {
+        return when (badgeMode) {
+            "none" -> null
+            "heart" -> "heart" to if (isFav) Color.rgb(255, 85, 130) else Color.argb(130, 255, 255, 255)
+            "blue" -> "sparkle" to if (isFav) Color.rgb(75, 195, 255) else Color.argb(130, 255, 255, 255)
+            else -> "sparkle" to if (isFav) Color.rgb(255, 215, 65) else Color.argb(130, 255, 255, 255)
+        }
+    }
+
+    private fun buildTileDrawable(
+        ctx: Context,
+        shape: String,
+        themeKey: String,
+        focused: Boolean,
+        accentColor: Int,
+        tileHeight: Int
+    ): GradientDrawable? {
+        if (shape == "heart") return null
+        val colors = TileThemePalette.getTopBottomColors(themeKey, focused)
+        return GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors).apply {
+            cornerRadius = when (shape) {
+                "circle" -> tileHeight / 2f
+                "classic" -> LauncherUtils.dpF(ctx, 12f)
+                else -> LauncherUtils.dpF(ctx, 22f)
+            }
+            setStroke(
+                dp(ctx, if (focused) 2 else 1),
+                if (focused) accentColor else Color.argb(95, 255, 255, 255)
+            )
+        }
+    }
+
+    private fun dp(ctx: Context, value: Int) = LauncherUtils.dp(ctx, value)
 }
