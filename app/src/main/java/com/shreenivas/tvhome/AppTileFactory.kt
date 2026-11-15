@@ -41,15 +41,19 @@ object AppTileFactory {
         val themeKey = lp.tileColor
         val badgeMode = lp.badgeMode
 
-        val tile = GlowTileLayout(ctx, shapeMode, lp.accentColor).apply {
+        val tile = GlowTileLayout(ctx).apply {
             tag = if (isFavSection) "fav_$pkg" else "all_$pkg"
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
             setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
             isFocusable = true
             isClickable = true
             background = buildTileDrawable(ctx, shapeMode, themeKey, false, lp.accentColor, tileHeight)
         }
+
+        val innerBox = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        tile.addView(innerBox, FrameLayout.LayoutParams(-1, -1))
 
         val iconWrap = FrameLayout(ctx)
         val iconPx = (tileHeight * if (shapeMode == "circle" || shapeMode == "heart") 0.36f else 0.42f).toInt()
@@ -81,7 +85,7 @@ object AppTileFactory {
                 }
             )
         }
-        tile.addView(iconWrap, LinearLayout.LayoutParams(-1, 0, 1f))
+        innerBox.addView(iconWrap, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val title = TextView(ctx).apply {
             text = label
@@ -94,11 +98,10 @@ object AppTileFactory {
             setShadowLayer(4f, 0f, 1.5f, Color.argb(175, 0, 0, 0))
             setPadding(dp(ctx, 4), dp(ctx, 4), dp(ctx, 4), dp(ctx, 2))
         }
-        tile.addView(title, LinearLayout.LayoutParams(-1, -2))
+        innerBox.addView(title, LinearLayout.LayoutParams(-1, -2))
 
         tile.setOnFocusChangeListener { v, focused ->
             LauncherUtils.applyFocusSpring(v, focused, 1.08f, 12f)
-            tile.setGlowFocused(focused)
             v.background = buildTileDrawable(ctx, shapeMode, themeKey, focused, lp.accentColor, tileHeight)
         }
 
@@ -112,10 +115,16 @@ object AppTileFactory {
         }
 
         tile.setOnLongClickListener {
-            AppActionDialog.show(ctx, label, isFavSection, isFavorite, lp.accentColor,
+            AppActionDialog.show(
+                ctx,
+                label,
+                isFavSection,
+                isFavorite,
+                canMoveLeft = true,
+                canMoveRight = true,
+                accent = lp.accentColor,
                 onToggleFav = { actions.onToggleFavorite(pkg, label) },
-                onMoveLeft = { actions.onMoveFavorite(pkg, -1) },
-                onMoveRight = { actions.onMoveFavorite(pkg, 1) },
+                onMoveFav = { delta -> actions.onMoveFavorite(pkg, delta) },
                 onHideApp = { actions.onHideApp(pkg, label) }
             )
             true
@@ -149,12 +158,11 @@ object AppTileFactory {
         focused: Boolean,
         accentColor: Int,
         tileHeight: Int
-    ): GradientDrawable? {
-        if (shape == "heart") return null
+    ): GradientDrawable {
         val colors = TileThemePalette.getTopBottomColors(themeKey, focused)
         return GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, colors).apply {
             cornerRadius = when (shape) {
-                "circle" -> tileHeight / 2f
+                "circle", "heart" -> tileHeight / 2f
                 "classic" -> LauncherUtils.dpF(ctx, 12f)
                 else -> LauncherUtils.dpF(ctx, 22f)
             }
