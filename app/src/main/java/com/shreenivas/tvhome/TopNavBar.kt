@@ -47,6 +47,7 @@ class TopNavBar(
     private lateinit var nudgeOverlayBubble: TextView
     private lateinit var ramTv: TextView
     private lateinit var wifiPill: LinearLayout
+    private lateinit var wifiIconView: VectorIconView
     private lateinit var wifiLabelTv: TextView
     private lateinit var wifiBubbleTv: TextView
 
@@ -70,7 +71,7 @@ class TopNavBar(
             if (wifiStateMode == 1) {
                 showConnectingAlt = !showConnectingAlt
                 wifiLabelTv.animate().alpha(0f).setDuration(180L).withEndAction {
-                    wifiLabelTv.text = if (showConnectingAlt) "◌  Connecting..." else "📶  WI-FI"
+                    wifiLabelTv.text = if (showConnectingAlt) "Connecting..." else "WI-FI"
                     wifiLabelTv.animate().alpha(1f).setDuration(220L).start()
                 }.start()
                 handler.postDelayed(this, 1600L)
@@ -118,17 +119,21 @@ class TopNavBar(
 
         addView(View(context), LayoutParams(0, 1, 1f))
 
-        val voicePill = makeGlassPill("🎙  Voice").apply {
+        // Crisp Vector Voice Pill
+        val voicePill = makeVectorPill("mic", "Voice Search", Color.rgb(120, 195, 255)).apply {
             setOnClickListener { callbacks.onVoiceSearch() }
         }
         addView(voicePill, LayoutParams(-2, dp(38)))
 
-        ramTv = makeText("⚡ RAM --%", 12.5f, Color.WHITE, true)
+        // Crisp Vector RAM % Pill
+        ramTv = makeText("RAM --%", 12.5f, Color.WHITE, true)
         val ramPill = LinearLayout(context).apply {
+            orientation = HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(dp(13), 0, dp(13), 0)
             isFocusable = true
             isClickable = true
+            addView(VectorIconView(context, "bolt", Color.rgb(255, 215, 95)), LayoutParams(dp(15), dp(15)).apply { rightMargin = dp(6) })
             addView(ramTv)
             background = pillBg(false, lp.accentColor)
             setOnFocusChangeListener { v, f ->
@@ -143,16 +148,20 @@ class TopNavBar(
         }
         addView(ramPill, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
+        // Crisp Vector Wi-Fi Pill + Hanging SSID Bubble
         val wifiWrapper = FrameLayout(context).apply {
             clipChildren = false
             clipToPadding = false
         }
-        wifiLabelTv = makeText("📶  WI-FI", 13f, Color.WHITE, true)
+        wifiIconView = VectorIconView(context, "wifi", Color.WHITE)
+        wifiLabelTv = makeText("WI-FI", 13f, Color.WHITE, true)
         wifiPill = LinearLayout(context).apply {
+            orientation = HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(dp(14), 0, dp(14), 0)
             isFocusable = true
             isClickable = true
+            addView(wifiIconView, LayoutParams(dp(16), dp(16)).apply { rightMargin = dp(6) })
             addView(wifiLabelTv)
             background = pillBg(false, lp.accentColor)
             setOnFocusChangeListener { v, f ->
@@ -160,10 +169,7 @@ class TopNavBar(
             }
             setOnClickListener { callbacks.onWifiClick() }
         }
-        wifiWrapper.addView(
-            wifiPill,
-            FrameLayout.LayoutParams(-2, dp(38), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-        )
+        wifiWrapper.addView(wifiPill, FrameLayout.LayoutParams(-2, dp(38), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
 
         wifiBubbleTv = TextView(context).apply {
             textSize = 9.5f
@@ -177,28 +183,15 @@ class TopNavBar(
         }
         wifiWrapper.addView(
             wifiBubbleTv,
-            FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                topMargin = dp(41)
-            }
+            FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(41) }
         )
         addView(wifiWrapper, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
-        addView(
-            makeCircleButton("🔔").apply { setOnClickListener { callbacks.onAlertsClick() } },
-            LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) }
-        )
-        addView(
-            makeCircleButton("✦").apply { setOnClickListener { callbacks.onCustomizeClick() } },
-            LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) }
-        )
-        addView(
-            makeCircleButton("⚙").apply { setOnClickListener { callbacks.onQuickSettingsClick() } },
-            LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) }
-        )
-        addView(
-            makeCircleButton("⏻").apply { setOnClickListener { callbacks.onPowerClick() } },
-            LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) }
-        )
+        // 4 Vector Circle Action Buttons (Alerts, Customize, Quick Settings, Power)
+        addView(makeVectorCircleButton("bell", Color.rgb(255, 210, 95)) { callbacks.onAlertsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
+        addView(makeVectorCircleButton("sparkle", Color.rgb(175, 145, 255)) { callbacks.onCustomizeClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
+        addView(makeVectorCircleButton("gear", Color.WHITE) { callbacks.onQuickSettingsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
+        addView(makeVectorCircleButton("power", Color.rgb(255, 115, 130)) { callbacks.onPowerClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
 
         updateClockRamAndWifi()
     }
@@ -221,9 +214,9 @@ class TopNavBar(
             val total = memInfo.totalMem.coerceAtLeast(1L)
             val used = (total - memInfo.availMem).coerceAtLeast(0L)
             val pct = ((used.toDouble() / total.toDouble()) * 100.0).roundToInt().coerceIn(1, 99)
-            ramTv.text = "⚡ RAM $pct%"
+            ramTv.text = "RAM $pct%"
         } catch (_: Exception) {
-            ramTv.text = "⚡ RAM"
+            ramTv.text = "RAM"
         }
     }
 
@@ -253,9 +246,10 @@ class TopNavBar(
         when (newMode) {
             2 -> {
                 val green = Color.rgb(46, 232, 138)
-                wifiLabelTv.text = "📶  WI-FI"
+                wifiIconView.setIcon("wifi", green)
+                wifiLabelTv.text = "WI-FI"
                 wifiPill.background = GradientDrawable().apply {
-                    setColor(Color.argb(72, 24, 98, 64))
+                    setColor(Color.argb(75, 24, 98, 64))
                     setStroke(dp(2), green)
                     cornerRadius = LauncherUtils.dpF(context, 22f)
                 }
@@ -273,6 +267,7 @@ class TopNavBar(
                 startPendulumSwing()
             }
             1 -> {
+                wifiIconView.setIcon("wifi", Color.rgb(92, 184, 255))
                 wifiBubbleTv.visibility = View.GONE
                 wifiPill.background = pillBg(true, Color.rgb(92, 184, 255))
                 breatheAnim = ValueAnimator.ofFloat(0.96f, 1.04f).apply {
@@ -290,7 +285,8 @@ class TopNavBar(
                 handler.post(cycleRunnable)
             }
             else -> {
-                wifiLabelTv.text = "📶  WI-FI"
+                wifiIconView.setIcon("wifi", Color.WHITE)
+                wifiLabelTv.text = "WI-FI"
                 wifiPill.background = pillBg(false, lp.accentColor)
                 wifiBubbleTv.rotation = 0f
                 handler.post(cycleRunnable)
@@ -391,11 +387,13 @@ class TopNavBar(
         }
     }
 
-    private fun makeGlassPill(label: String) = LinearLayout(context).apply {
+    private fun makeVectorPill(icon: String, label: String, iconTint: Int) = LinearLayout(context).apply {
+        orientation = HORIZONTAL
         gravity = Gravity.CENTER
-        setPadding(dp(15), 0, dp(15), 0)
+        setPadding(dp(14), 0, dp(15), 0)
         isFocusable = true
         isClickable = true
+        addView(VectorIconView(context, icon, iconTint), LayoutParams(dp(16), dp(16)).apply { rightMargin = dp(7) })
         addView(makeText(label, 13f, Color.WHITE, true))
         background = pillBg(false, lp.accentColor)
         setOnFocusChangeListener { v, f ->
@@ -404,30 +402,35 @@ class TopNavBar(
         }
     }
 
-    private fun makeCircleButton(symbol: String) = TextView(context).apply {
-        text = symbol
-        textSize = 16.5f
-        setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER
+    private fun makeVectorCircleButton(icon: String, tint: Int, onClick: () -> Unit) = FrameLayout(context).apply {
         isFocusable = true
+        isClickable = true
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.argb(56, 16, 26, 48))
-            setStroke(dp(1), Color.argb(95, 255, 255, 255))
+            setColor(Color.argb(62, 22, 32, 68))
+            setStroke(dp(1), Color.argb(105, 255, 255, 255))
         }
+        val iv = VectorIconView(context, icon, tint)
+        addView(iv, FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+        setOnClickListener { onClick() }
         setOnFocusChangeListener { v, f ->
-            LauncherUtils.applyFocusSpring(v, f, 1.14f, 8f)
-            when (symbol) {
-                "⚙" -> v.animate().rotation(if (f) 60f else 0f).setDuration(240).start()
-                "🔔" -> v.animate().rotation(if (f) 18f else 0f).setDuration(200).start()
-                "✦" -> v.animate().rotation(if (f) 45f else 0f).setDuration(240).start()
+            LauncherUtils.applyFocusSpring(v, f, 1.15f, 8f)
+            v.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (f) Color.argb(120, 255, 255, 255) else Color.argb(62, 22, 32, 68))
+                setStroke(dp(if (f) 2 else 1), if (f) lp.accentColor else Color.argb(105, 255, 255, 255))
+            }
+            when (icon) {
+                "gear" -> iv.animate().rotation(if (f) 60f else 0f).setDuration(240).start()
+                "bell" -> iv.animate().rotation(if (f) 18f else 0f).setDuration(200).start()
+                "sparkle" -> iv.animate().rotation(if (f) 45f else 0f).setDuration(240).start()
             }
         }
     }
 
     private fun pillBg(focused: Boolean, accent: Int) = GradientDrawable().apply {
-        setColor(if (focused) Color.argb(105, 255, 255, 255) else Color.argb(48, 16, 26, 48))
-        setStroke(dp(if (focused) 2 else 1), if (focused) accent else Color.argb(85, 255, 255, 255))
+        setColor(if (focused) Color.argb(110, 255, 255, 255) else Color.argb(54, 22, 32, 68))
+        setStroke(dp(if (focused) 2 else 1), if (focused) accent else Color.argb(95, 255, 255, 255))
         cornerRadius = LauncherUtils.dpF(context, 22f)
     }
 
