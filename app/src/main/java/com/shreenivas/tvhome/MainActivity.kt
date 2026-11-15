@@ -188,7 +188,7 @@ class MainActivity : Activity() {
 
         mainPage = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(36), dp(16), dp(36), dp(14))
+            setPadding(dp(32), dp(14), dp(32), dp(12))
         }
         rootLayout.addView(mainPage, FrameLayout.LayoutParams(-1, -1))
 
@@ -210,8 +210,10 @@ class MainActivity : Activity() {
             }
 
             override fun onWifiClick() = sideDrawer.toggle(SideControlDrawer.MODE_WIFI)
+            override fun onAlertsClick() = sideDrawer.toggle(SideControlDrawer.MODE_ALERTS)
             override fun onCustomizeClick() = sideDrawer.toggle(SideControlDrawer.MODE_CUSTOMIZE)
             override fun onQuickSettingsClick() = sideDrawer.toggle(SideControlDrawer.MODE_QUICK)
+            override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
         mainPage.addView(topNavBar)
 
@@ -261,7 +263,7 @@ class MainActivity : Activity() {
         val scrollContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutTransition = LayoutTransition().apply {
-                setDuration(220L)
+                setDuration(200L)
                 disableTransitionType(LayoutTransition.APPEARING)
                 disableTransitionType(LayoutTransition.DISAPPEARING)
             }
@@ -275,6 +277,15 @@ class MainActivity : Activity() {
         mainBody.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         setupRightDrawer(contentArea)
+                val nudgeView = topNavBar.createFloatingNudgeView()
+        rootLayout.addView(
+            nudgeView,
+            FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+                topMargin = dp(52)
+                leftMargin = dp(235)
+            }
+        )
+        
         setContentView(rootLayout)
         refreshApps(true)
     }
@@ -288,7 +299,7 @@ class MainActivity : Activity() {
         }
         contentArea.addView(drawerScrim, FrameLayout.LayoutParams(-1, -1))
 
-        val drawerW = maxOf(dp(220), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+        val drawerW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
@@ -309,7 +320,7 @@ class MainActivity : Activity() {
     private fun applyLiveVisuals() {
         topNavBar.refreshGreeting()
         LauncherBackground.updateThemeAndAccent(rootLayout, lp)
-        val newW = maxOf(dp(220), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+        val newW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         if (drawerLayout.layoutParams.width != newW) {
             drawerLayout.layoutParams.width = newW
             drawerLayout.requestLayout()

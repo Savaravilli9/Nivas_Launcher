@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.provider.Settings
 import android.text.InputType
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
@@ -33,6 +34,8 @@ class SideControlDrawer(
         const val MODE_CUSTOMIZE = "customize"
         const val MODE_QUICK = "quick"
         const val MODE_WIFI = "wifi"
+        const val MODE_ALERTS = "alerts"
+        const val MODE_POWER = "power"
         const val MODE_WALLPAPER_EDIT = "wp_edit"
     }
 
@@ -52,21 +55,20 @@ class SideControlDrawer(
         currentMode = mode
         isOpen = true
 
-        // True Glossymorphic Translucent Glass (Background apps stay subtly visible!)
         drawerLayout.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(
-                Color.argb(175, 24, 34, 68),
-                Color.argb(190, 16, 22, 48),
-                Color.argb(205, 12, 18, 38)
+                Color.argb(238, 22, 30, 68),
+                Color.argb(244, 15, 22, 52),
+                Color.argb(248, 10, 15, 38)
             )
         ).apply {
             cornerRadius = LauncherUtils.dpF(context, 24f)
-            setStroke(dp(1.5f), Color.argb(120, 255, 255, 255))
+            setStroke(dp(1.5f), Color.argb(145, 255, 255, 255))
         }
-        drawerLayout.elevation = dp(20f).toFloat()
+        drawerLayout.elevation = dp(22f).toFloat()
 
-        scrim.setBackgroundColor(Color.argb(45, 4, 8, 20))
+        scrim.setBackgroundColor(Color.argb(55, 4, 8, 20))
         scrim.visibility = View.VISIBLE
         drawerLayout.visibility = View.VISIBLE
 
@@ -75,7 +77,7 @@ class SideControlDrawer(
 
         if (!wasOpen) {
             scrim.alpha = 0f
-            scrim.animate().alpha(1f).setDuration(220L).start()
+            scrim.animate().alpha(1f).setDuration(200L).start()
 
             val startX = drawerLayout.layoutParams.width + dp(30f)
             drawerLayout.translationX = startX.toFloat()
@@ -83,7 +85,7 @@ class SideControlDrawer(
             drawerLayout.animate()
                 .translationX(0f)
                 .alpha(1f)
-                .setDuration(260L)
+                .setDuration(240L)
                 .setInterpolator(LauncherUtils.SILKY_EASE)
                 .start()
         }
@@ -99,7 +101,7 @@ class SideControlDrawer(
         drawerLayout.animate()
             .translationX(out.toFloat())
             .alpha(0f)
-            .setDuration(220L)
+            .setDuration(200L)
             .setInterpolator(LauncherUtils.SILKY_EASE)
             .withEndAction {
                 scrim.visibility = View.GONE
@@ -121,10 +123,12 @@ class SideControlDrawer(
         val (icon, title) = when (currentMode) {
             MODE_CUSTOMIZE -> "✦  " to "Customize Launcher"
             MODE_WIFI -> "📶  " to "Network & Internet"
+            MODE_ALERTS -> "🔔  " to "Alerts & Notifications"
+            MODE_POWER -> "⏻  " to "Power & System"
             MODE_WALLPAPER_EDIT -> "🖼  " to "Wallpaper Studio"
             else -> "⚡  " to "Control Center"
         }
-        topRow.addView(text("$icon$title", 15f, Color.WHITE, true))
+        topRow.addView(text("$icon$title", 13.5f, Color.WHITE, true))
         topRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
 
         val closeX = TextView(context).apply {
@@ -138,10 +142,10 @@ class SideControlDrawer(
             }
             setOnClickListener { close() }
         }
-        topRow.addView(closeX, LinearLayout.LayoutParams(dp(30f), dp(30f)))
+        topRow.addView(closeX, LinearLayout.LayoutParams(dp(28f), dp(28f)))
         drawerLayout.addView(topRow)
 
-        val divider = View(context).apply { setBackgroundColor(Color.argb(55, 255, 255, 255)) }
+        val divider = View(context).apply { setBackgroundColor(Color.argb(60, 255, 255, 255)) }
         drawerLayout.addView(divider, LinearLayout.LayoutParams(-1, dp(1f)).apply { bottomMargin = dp(8f) })
 
         activeScroll = ScrollView(context).apply {
@@ -152,6 +156,7 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
+
     private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
@@ -167,12 +172,108 @@ class SideControlDrawer(
                 ::close
             )
             MODE_WIFI -> WifiPanelBuilder.build(context, panel, lp) { populateActivePanel(false) }
+            MODE_ALERTS -> buildRealAlertsPanel(panel)
+            MODE_POWER -> buildPowerPanel(panel)
             MODE_WALLPAPER_EDIT -> WallpaperEditorPanel.build(context, panel, lp, onWallpaperRefresh, onPickWallpaper) { open(MODE_CUSTOMIZE) }
             else -> buildControlCenter(panel)
         }
 
         if (isInitialOpen) {
             panel.post { panel.requestFocus() }
+        }
+    }
+    private fun buildRealAlertsPanel(panel: LinearLayout) {
+        val hasPerm = TvNotificationService.isPermissionGranted(context)
+        if (!hasPerm) {
+            addLabel(panel, "PERMISSION REQUIRED")
+            addActionButton(
+                panel, "🔓", "Enable Notification Access",
+                "Allow Shree TV Home to show real system & app alerts"
+            ) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                } catch (_: Exception) {
+                    launch(Settings.ACTION_SETTINGS)
+                }
+            }
+            return
+        }
+
+        val alerts = TvNotificationService.getAlerts()
+        val topBar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        topBar.addView(text("LIVE SYSTEM ALERTS (${alerts.size})", 9f, lp.accentColor, true))
+        topBar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+        if (alerts.isNotEmpty()) {
+            val clearAll = text("Clear All", 9f, Color.WHITE, true).apply {
+                setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
+                isFocusable = true
+                background = glassCardBg(false)
+                setOnFocusChangeListener { v, f -> v.background = glassCardBg(f) }
+                setOnClickListener {
+                    TvNotificationService.clearAllAlerts()
+                    populateActivePanel(false)
+                }
+            }
+            topBar.addView(clearAll)
+        }
+        panel.addView(topBar, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
+
+        if (alerts.isEmpty()) {
+            val emptyTv = text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
+                gravity = Gravity.CENTER
+                setPadding(0, dp(28f), 0, dp(28f))
+            }
+            panel.addView(emptyTv, LinearLayout.LayoutParams(-1, -2))
+            return
+        }
+
+        for (item in alerts) {
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11f), dp(9f), dp(11f), dp(9f))
+                isFocusable = true
+                background = glassCardBg(false)
+                setOnFocusChangeListener { v, f ->
+                    LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
+                    v.background = glassCardBg(f)
+                }
+                setOnClickListener {
+                    TvNotificationService.dismissAlert(item.key)
+                    populateActivePanel(false)
+                }
+            }
+            val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            row1.addView(text("🔔  ${item.appName}", 9f, lp.accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
+            row1.addView(text("${item.timeStr}  ✕", 8.5f, Color.argb(180, 255, 255, 255), true))
+            card.addView(row1)
+
+            card.addView(text(item.title, 10.5f, Color.WHITE, true).apply {
+                isSingleLine = true; ellipsize = TextUtils.TruncateAt.END
+                setPadding(0, dp(3f), 0, dp(1f))
+            })
+            card.addView(text(item.text, 9f, Color.argb(195, 215, 232, 250), false).apply {
+                maxLines = 2; ellipsize = TextUtils.TruncateAt.END
+            })
+            panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
+        }
+    }
+
+    private fun buildPowerPanel(panel: LinearLayout) {
+        addLabel(panel, "DEVICE POWER & REBOOT")
+        addActionButton(panel, "🌙", "Sleep / Screensaver", "Put TV display to rest") {
+            try { context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) } catch (_: Exception) {}
+            close()
+        }
+        addActionButton(panel, "🔄", "Refresh Launcher", "Reload all installed TV apps") {
+            AppGridManager.clearCache()
+            onLiveRefresh()
+            close()
+        }
+        addActionButton(panel, "⚙", "Android TV Settings", "Device preferences & reboot") {
+            launch(Settings.ACTION_SETTINGS)
         }
     }
 
@@ -208,7 +309,6 @@ class SideControlDrawer(
         panel.addView(gridRow2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
 
         addLabel(panel, "DISPLAY & SOUND LEVELS")
-        // In-App Window Brightness Control (No jarring settings jump!)
         addSliderCard(panel, "☀  Screen Brightness", brightnessPct) { p ->
             brightnessPct = p
             (context as? Activity)?.window?.let { win ->
@@ -226,7 +326,7 @@ class SideControlDrawer(
             am?.setStreamVolume(AudioManager.STREAM_MUSIC, ((p / 100f) * maxVol).toInt(), 0)
         }
 
-        addLabel(panel, "QUICK ACTIONS")
+        addLabel(panel, "NETWORK & FEATURES")
         addActionButton(panel, "📶", "Wi-Fi & Network", "Manage connection") { open(MODE_WIFI) }
         addActionButton(panel, "✦", "Customize Home", "Themes, grid & wallpaper") { open(MODE_CUSTOMIZE) }
         addActionButton(panel, "📱", "Installed Apps", "Storage & permissions") { launch(Settings.ACTION_APPLICATION_SETTINGS) }
@@ -269,10 +369,12 @@ class SideControlDrawer(
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(12f), dp(20f), dp(8f)) }
         val nameInput = EditText(context).apply {
             isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+                        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
         }
         val phraseInput = EditText(context).apply {
-            isSingleLine = true; hint = "Custom Greeting (Empty = Auto Time)"; setText(lp.greetingPhrase)
+            isSingleLine = true
+            hint = "Custom Greeting (Empty = Auto Time)"
+            setText(lp.greetingPhrase)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
         box.addView(nameInput)
@@ -293,9 +395,15 @@ class SideControlDrawer(
 
     private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
         val card = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
-            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f); v.background = glassCardBg(f) }
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12f), dp(9f), dp(12f), dp(9f))
+            isFocusable = true
+            background = glassCardBg(false)
+            setOnFocusChangeListener { v, f ->
+                LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
+                v.background = glassCardBg(f)
+            }
             setOnClickListener { act() }
         }
         card.addView(text(icon, 14f, lp.accentColor, true).apply { setPadding(0, 0, dp(10f), 0) })
@@ -307,10 +415,38 @@ class SideControlDrawer(
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
 
-    private fun launch(act: String) = try { context.startActivity(Intent(act)) } catch (_: Exception) { Toast.makeText(context, "Unavailable", Toast.LENGTH_SHORT).show() }
-    private fun xBtnBg(foc: Boolean) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255)); setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255)) }
-    private fun glassCardBg(foc: Boolean) = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255)) else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))).apply { cornerRadius = LauncherUtils.dpF(context, 14f); setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255)) }
-    private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply { text = v; textSize = sz; setTextColor(col); if (bld) typeface = Typeface.DEFAULT_BOLD }
-    private fun addLabel(panel: LinearLayout, lbl: String) = panel.addView(text(lbl.uppercase(Locale.ROOT), 9f, lp.accentColor, true).apply { letterSpacing = 0.09f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f); bottomMargin = dp(5f) })
+    private fun launch(act: String) = try {
+        context.startActivity(Intent(act))
+    } catch (_: Exception) {
+        Toast.makeText(context, "Unavailable", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun xBtnBg(foc: Boolean) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255))
+        setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255))
+    }
+
+    private fun glassCardBg(foc: Boolean) = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255))
+        else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))
+    ).apply {
+        cornerRadius = LauncherUtils.dpF(context, 14f)
+        setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255))
+    }
+
+    private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply {
+        text = v
+        textSize = sz
+        setTextColor(col)
+        if (bld) typeface = Typeface.DEFAULT_BOLD
+    }
+
+    private fun addLabel(panel: LinearLayout, lbl: String) = panel.addView(
+        text(lbl.uppercase(Locale.ROOT), 9f, lp.accentColor, true).apply { letterSpacing = 0.09f },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f); bottomMargin = dp(5f) }
+    )
+
     private fun dp(v: Float) = LauncherUtils.dpF(context, v).toInt()
 }

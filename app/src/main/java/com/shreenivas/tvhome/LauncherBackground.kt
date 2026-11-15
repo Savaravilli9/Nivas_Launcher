@@ -5,19 +5,20 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
-import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RadialGradient
 import android.graphics.Shader
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import kotlin.math.sin
+import kotlin.random.Random
 
 object LauncherBackground {
     private var activeWallpaperView: ImageView? = null
-    private var activeAirflowView: AirflowOverlayView? = null
+    private var activeAuroraView: RoyalCosmosView? = null
     private var baseZoom = 1.08f
     private var baseOffsetY = 0
 
@@ -25,6 +26,7 @@ object LauncherBackground {
         val sp = lp.prefs
         val wallpaper = sp.getString(LauncherPreferences.PREF_WALLPAPER, null)
         activeWallpaperView = null
+        activeAuroraView = null
 
         if (wallpaper != null) {
             root.background = null
@@ -47,87 +49,132 @@ object LauncherBackground {
             }
             root.addView(image, 0, FrameLayout.LayoutParams(-1, -1))
             activeWallpaperView = image
-
-            val airflow = AirflowOverlayView(ctx, lp.accentColor)
-            root.addView(airflow, 1, FrameLayout.LayoutParams(-1, -1))
-            activeAirflowView = airflow
         } else {
-            val gradColors = TileThemePalette.getWallpaperGradient(lp.tileColor)
-            root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, gradColors)
-
-            val airflow = AirflowOverlayView(ctx, lp.accentColor)
-            root.addView(airflow, 0, FrameLayout.LayoutParams(-1, -1))
-            activeAirflowView = airflow
+            root.background = null
+            val cosmos = RoyalCosmosView(ctx, lp.tileColor, lp.accentColor)
+            root.addView(cosmos, 0, FrameLayout.LayoutParams(-1, -1))
+            activeAuroraView = cosmos
         }
     }
 
     fun updateThemeAndAccent(root: FrameLayout, lp: LauncherPreferences) {
         if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) == null) {
-            val gradColors = TileThemePalette.getWallpaperGradient(lp.tileColor)
-            root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, gradColors)
+            activeAuroraView?.updateStyle(lp.tileColor, lp.accentColor)
         }
-        activeAirflowView?.setAccent(lp.accentColor)
     }
 
     fun onScrollParallax(scrollY: Int) {
-        activeWallpaperView?.let {
-            val shift = minOf(45f, scrollY * 0.14f)
-            it.translationY = baseOffsetY - shift
-        }
+        val shift = minOf(24f, scrollY * 0.08f)
+        activeWallpaperView?.translationY = baseOffsetY - shift
+        activeAuroraView?.setParallaxShift(shift)
     }
 
-    private class AirflowOverlayView(ctx: Context, private var accent: Int) : View(ctx) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val matrix = Matrix()
-        private var shader: LinearGradient? = null
-        private var flowAnim: ValueAnimator? = null
-        private var shift = 0f
+    private class RoyalCosmosView(
+        ctx: Context,
+        private var themeKey: String,
+        private var accentColor: Int
+    ) : View(ctx) {
 
-        fun setAccent(newAccent: Int) {
-            accent = newAccent
-            buildShader(width, height)
+        private val skyPaint = Paint(Paint.DITHER_FLAG)
+        private val topLeftGlow = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val centerVioletGlow = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val starPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var flowAnim: ValueAnimator? = null
+        private var phase = 0f
+        private var parallaxY = 0f
+
+        private data class Star(val xRatio: Float, val yRatio: Float, val radiusPx: Float, val offset: Float)
+
+        private val stars = List(48) { i ->
+            val rnd = Random(i * 1013 + 11)
+            val d = resources.displayMetrics.density
+            Star(
+                xRatio = rnd.nextFloat(),
+                yRatio = rnd.nextFloat() * 0.78f,
+                radiusPx = (0.6f + rnd.nextFloat() * 1.1f) * d,
+                offset = rnd.nextFloat() * 6.28f
+            )
+        }
+
+        fun updateStyle(newTheme: String, newAccent: Int) {
+            themeKey = newTheme
+            accentColor = newAccent
+            buildShaders(width, height)
             invalidate()
+        }
+
+        fun setParallaxShift(shift: Float) {
+            if (parallaxY != shift) {
+                parallaxY = shift
+                invalidate()
+            }
         }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             if (w <= 0 || h <= 0) return
-            buildShader(w, h)
+            buildShaders(w, h)
+
             flowAnim?.cancel()
-            flowAnim = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 9500L
-                repeatMode = ValueAnimator.REVERSE
+            flowAnim = ValueAnimator.ofFloat(0f, 6.28318f).apply {
+                duration = 26000L
                 repeatCount = ValueAnimator.INFINITE
                 interpolator = LinearInterpolator()
                 addUpdateListener {
-                    shift = it.animatedValue as Float
+                    phase = it.animatedValue as Float
                     invalidate()
                 }
                 start()
             }
         }
 
-        private fun buildShader(w: Int, h: Int) {
+        private fun buildShaders(w: Int, h: Int) {
             if (w <= 0 || h <= 0) return
-            val softAccent = LauncherUtils.withAlpha(accent, 42)
-            val softCyan = Color.argb(28, 120, 210, 255)
-            val darkEdge = Color.argb(72, 8, 12, 28)
-            shader = LinearGradient(
-                0f, 0f, w * 1.3f, h * 1.1f,
-                intArrayOf(darkEdge, softAccent, softCyan, darkEdge),
-                floatArrayOf(0f, 0.38f, 0.68f, 1f),
+            val baseColors = TileThemePalette.getWallpaperGradient(themeKey)
+
+            skyPaint.shader = LinearGradient(
+                0f, 0f, w.toFloat(), h.toFloat(),
+                baseColors,
+                floatArrayOf(0f, 0.50f, 1f),
                 Shader.TileMode.CLAMP
             )
-            paint.shader = shader
+
+            topLeftGlow.shader = RadialGradient(
+                w * 0.22f, h * 0.25f, w * 0.55f,
+                intArrayOf(
+                    LauncherUtils.withAlpha(accentColor, 95),
+                    Color.argb(40, 65, 130, 255),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.50f, 1f),
+                Shader.TileMode.CLAMP
+            )
+
+            centerVioletGlow.shader = RadialGradient(
+                w * 0.65f, h * 0.55f, w * 0.60f,
+                intArrayOf(
+                    Color.argb(85, 115, 65, 225),
+                    Color.argb(35, 85, 45, 185),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP
+            )
         }
 
         override fun onDraw(canvas: Canvas) {
-            shader?.let {
-                val dx = (shift - 0.5f) * (width * 0.22f)
-                val dy = (shift - 0.5f) * (height * 0.14f)
-                matrix.setTranslate(dx, dy)
-                it.setLocalMatrix(matrix)
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            if (w <= 0f || h <= 0f) return
+
+            canvas.drawRect(0f, 0f, w, h, skyPaint)
+            canvas.drawRect(0f, 0f, w, h, topLeftGlow)
+            canvas.drawRect(0f, 0f, w, h, centerVioletGlow)
+
+            for (s in stars) {
+                val twinkle = 0.35f + 0.65f * sin(phase * 2f + s.offset)
+                starPaint.color = Color.argb((twinkle * 185).toInt(), 215, 230, 255)
+                canvas.drawCircle(s.xRatio * w, s.yRatio * h - parallaxY * 0.3f, s.radiusPx, starPaint)
             }
         }
 
