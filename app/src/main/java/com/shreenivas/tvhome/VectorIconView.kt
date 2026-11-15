@@ -77,10 +77,10 @@ class VectorIconView(
             "sparkle" -> {
                 path.reset()
                 path.moveTo(cx, cy - r * 0.95f)
-                path.quadTo(cx, cy, cx + r * 0.95f, cy)
-                path.quadTo(cx, cy, cx, cy + r * 0.95f)
-                path.quadTo(cx, cy, cx - r * 0.95f, cy)
-                path.quadTo(cx, cy, cx, cy - r * 0.95f)
+                path.quadraticTo(cx, cy, cx + r * 0.95f, cy)
+                path.quadraticTo(cx, cy, cx, cy + r * 0.95f)
+                path.quadraticTo(cx, cy, cx - r * 0.95f, cy)
+                path.quadraticTo(cx, cy, cx, cy - r * 0.95f)
                 path.close()
                 canvas.drawPath(path, fillPaint)
             }
