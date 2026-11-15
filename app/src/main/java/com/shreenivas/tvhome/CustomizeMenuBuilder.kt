@@ -43,7 +43,7 @@ object CustomizeMenuBuilder {
                 .setDuration(150L)
                 .setInterpolator(LauncherUtils.SILKY_EASE)
                 .withEndAction {
-                    panel.removeView(box)
+                    panel?.removeView(box)
                     parentCard?.requestFocus()
                     onClosedCallback?.invoke()
                 }
