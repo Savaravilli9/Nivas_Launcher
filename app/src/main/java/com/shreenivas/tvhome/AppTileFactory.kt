@@ -41,7 +41,8 @@ object AppTileFactory {
         val themeKey = lp.tileColor
         val badgeMode = lp.badgeMode
 
-        val tile = GlowTileLayout(ctx).apply {
+        // Clean FrameLayout container (Fixes Double Border bug from GlowTileLayout!)
+        val tile = FrameLayout(ctx).apply {
             tag = if (isFavSection) "fav_$pkg" else "all_$pkg"
             setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
             isFocusable = true
@@ -101,7 +102,7 @@ object AppTileFactory {
         innerBox.addView(title, LinearLayout.LayoutParams(-1, -2))
 
         tile.setOnFocusChangeListener { v, focused ->
-            LauncherUtils.applyFocusSpring(v, focused, 1.08f, 12f)
+            LauncherUtils.applyFocusSpring(v, focused, 1.07f, 12f)
             v.background = buildTileDrawable(ctx, shapeMode, themeKey, focused, lp.accentColor, tileHeight)
         }
 
@@ -129,7 +130,6 @@ object AppTileFactory {
             )
             true
         }
-
 
         tile.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_MENU) {
@@ -169,7 +169,7 @@ object AppTileFactory {
             }
             setStroke(
                 dp(ctx, if (focused) 2 else 1),
-                if (focused) accentColor else Color.argb(95, 255, 255, 255)
+                if (focused) accentColor else Color.argb(85, 255, 255, 255)
             )
         }
     }
