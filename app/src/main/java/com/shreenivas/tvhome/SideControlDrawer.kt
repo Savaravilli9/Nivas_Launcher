@@ -47,7 +47,7 @@ class SideControlDrawer(
     private var activePanel: LinearLayout? = null
     private var brightnessPct = 85
 
-    fun toggle(mode: String) {
+        fun toggle(mode: String) {
         if (isOpen && mode == currentMode) close() else open(mode)
     }
 
@@ -55,6 +55,11 @@ class SideControlDrawer(
         val wasOpen = isOpen
         currentMode = mode
         isOpen = true
+
+        val screenW = context.resources.displayMetrics.widthPixels
+        val dynamicDrawerW = maxOf(LauncherUtils.dp(context, 250), (screenW * (lp.panelWidthPct / 100f)).toInt())
+        drawerLayout.layoutParams.width = dynamicDrawerW
+        drawerLayout.requestLayout()
 
         drawerLayout.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
@@ -64,7 +69,6 @@ class SideControlDrawer(
             setStroke(dp(1.5f), Color.argb(145, 255, 255, 255))
         }
         drawerLayout.elevation = dp(22f).toFloat()
-
         scrim.setBackgroundColor(Color.argb(55, 4, 8, 20))
         scrim.visibility = View.VISIBLE
         drawerLayout.visibility = View.VISIBLE
@@ -73,31 +77,19 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
+            onLiveRefresh() // Instantly recalculates grid to 4 cols seamlessly
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            mainPage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            
             scrim.alpha = 0f
-            scrim.animate().alpha(1f).setDuration(200L).start()
+            scrim.animate().alpha(1f).setDuration(220L).start()
 
-            // Push mainPage to the left so apps don't get cut
-            mainPage.animate()
-                .translationX(-drawerLayout.layoutParams.width * 0.25f)
-                .scaleX(0.95f).scaleY(0.95f)
-                .setDuration(240L)
-                .setInterpolator(LauncherUtils.SILKY_EASE)
-                .start()
-
-            val startX = drawerLayout.layoutParams.width + dp(30f)
+            val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(240L)
+                .setDuration(220L)
                 .setInterpolator(LauncherUtils.SILKY_EASE)
-                .withEndAction {
-                    drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                    mainPage.setLayerType(View.LAYER_TYPE_NONE, null)
-                }
+                .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
         }
     }
@@ -109,27 +101,17 @@ class SideControlDrawer(
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        mainPage.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        
         scrim.animate().alpha(0f).setDuration(180L).start()
         
-        // Bring mainPage back to normal
-        mainPage.animate()
-            .translationX(0f)
-            .scaleX(1f).scaleY(1f)
-            .setDuration(200L)
-            .setInterpolator(LauncherUtils.SILKY_EASE)
-            .start()
-
         drawerLayout.animate()
             .translationX(out.toFloat()).alpha(0f)
             .setDuration(200L)
             .setInterpolator(LauncherUtils.SILKY_EASE)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                mainPage.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE
                 drawerLayout.visibility = View.GONE
+                onLiveRefresh() // Restores grid to full 6 cols seamlessly
             }
             .start()
     }
