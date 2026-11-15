@@ -118,6 +118,7 @@ object AppTileFactory {
             AppActionDialog.show(
                 ctx,
                 label,
+                pkg,
                 isFavSection,
                 isFavorite,
                 canMoveLeft = true,
