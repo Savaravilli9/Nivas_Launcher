@@ -71,6 +71,11 @@ class LauncherPreferences(context: Context) {
         get() = prefs.getBoolean(PREF_SORT_ASC, true)
         set(value) = prefs.edit().putBoolean(PREF_SORT_ASC, value).apply()
 
+    var sortOrder: String
+        get() = prefs.getString("sort_order", "az") ?: "az"
+        set(value) = prefs.edit().putString("sort_order", value).apply()
+        
+
     // Preserves exact custom user ordering for Favorites
     fun getOrderedFavorites(): MutableList<String> {
         val raw = prefs.getString(PREF_FAVORITES_ORDER, null)
