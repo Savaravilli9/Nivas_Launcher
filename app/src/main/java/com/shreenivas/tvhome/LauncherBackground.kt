@@ -9,7 +9,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Shader
-import android.graphics.SweepGradient
 import android.net.Uri
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -28,52 +27,80 @@ object LauncherBackground {
     fun apply(ctx: Context, root: FrameLayout, lp: LauncherPreferences) {
         val sp = lp.prefs
         val wallpaper = sp.getString(LauncherPreferences.PREF_WALLPAPER, null)
-        activeWallpaperView = null; activeCosmosView = null
+        activeWallpaperView = null
+        activeCosmosView = null
 
         if (wallpaper != null) {
             root.background = null
             val image = ImageView(ctx).apply {
-                scaleType = when (sp.getString("wp_scale_mode", "fit")) { "width" -> ImageView.ScaleType.FIT_XY; "height" -> ImageView.ScaleType.FIT_CENTER; else -> ImageView.ScaleType.CENTER_CROP }
-                baseZoom = maxOf(1.08f, sp.getFloat("wp_zoom", 1.0f)); baseOffsetY = sp.getInt("wp_offset_y", 0)
-                scaleX = baseZoom; scaleY = baseZoom; translationX = sp.getInt("wp_offset_x", 0).toFloat(); translationY = baseOffsetY.toFloat()
+                scaleType = when (sp.getString("wp_scale_mode", "fit")) {
+                    "width" -> ImageView.ScaleType.FIT_XY
+                    "height" -> ImageView.ScaleType.FIT_CENTER
+                    else -> ImageView.ScaleType.CENTER_CROP
+                }
+                baseZoom = maxOf(1.08f, sp.getFloat("wp_zoom", 1.0f))
+                baseOffsetY = sp.getInt("wp_offset_y", 0)
+                scaleX = baseZoom; scaleY = baseZoom
+                translationX = sp.getInt("wp_offset_x", 0).toFloat()
+                translationY = baseOffsetY.toFloat()
                 try { setImageURI(Uri.parse(wallpaper)) } catch (_: Exception) {}
             }
-            root.addView(image, 0, FrameLayout.LayoutParams(-1, -1)); activeWallpaperView = image
+            root.addView(image, 0, FrameLayout.LayoutParams(-1, -1))
+            activeWallpaperView = image
         } else {
             root.background = null
             val cosmos = RoyalMoonCosmosView(ctx, lp.accentColor)
-            root.addView(cosmos, 0, FrameLayout.LayoutParams(-1, -1)); activeCosmosView = cosmos
+            root.addView(cosmos, 0, FrameLayout.LayoutParams(-1, -1))
+            activeCosmosView = cosmos
         }
     }
 
     fun updateThemeAndAccent(root: FrameLayout, lp: LauncherPreferences) {
-        if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) == null) activeCosmosView?.updateAccent(lp.accentColor)
+        if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) == null) {
+            activeCosmosView?.updateAccent(lp.accentColor)
+        }
     }
 
     fun onScrollParallax(scrollY: Int) {
         val shift = minOf(22f, scrollY * 0.07f)
-        activeWallpaperView?.translationY = baseOffsetY - shift; activeCosmosView?.setParallaxShift(shift)
+        activeWallpaperView?.translationY = baseOffsetY - shift
+        activeCosmosView?.setParallaxShift(shift)
     }
 
     private class RoyalMoonCosmosView(ctx: Context, private var accentColor: Int) : View(ctx) {
-        private val skyPaint = Paint(Paint.DITHER_FLAG); private val themeAuraPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val skyPaint = Paint(Paint.DITHER_FLAG)
+        private val themeAuraPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val sparklePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-        private val naturalGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG); private val moonDiscPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val naturalGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val moonDiscPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val craterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(30, 165, 185, 215) }
-        private val goldenRayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         
-        private val starPath = Path(); private var flowAnim: ValueAnimator? = null
-        private var phase = 0f; private var parallaxY = 0f; private var moonR = 0f
+        private val starPath = Path()
+        private var flowAnim: ValueAnimator? = null
+        private var phase = 0f
+        private var parallaxY = 0f
 
         private data class SparkleStar(val xRatio: Float, val yRatio: Float, val sizePx: Float, val speed: Float, val offset: Float, val tint: Int)
         private val sparkles = List(45) { i ->
-            val rnd = Random(i * 997 + 13); val d = resources.displayMetrics.density
-            val tint = when (i % 4) { 0 -> Color.rgb(255, 245, 205); 1 -> Color.rgb(185, 225, 255); 2 -> Color.rgb(225, 200, 255); else -> Color.WHITE }
-            SparkleStar(0.02f + rnd.nextFloat() * 0.96f, 0.02f + rnd.nextFloat() * 0.85f, (1.8f + rnd.nextFloat() * 4.5f) * d, 1.2f + rnd.nextFloat() * 3.5f, rnd.nextFloat() * 10f, tint)
+            val rnd = Random(i * 997 + 13)
+            val d = resources.displayMetrics.density
+            val tint = when (i % 4) {
+                0 -> Color.rgb(255, 245, 205); 1 -> Color.rgb(185, 225, 255)
+                2 -> Color.rgb(225, 200, 255); else -> Color.WHITE
+            }
+            SparkleStar(
+                0.02f + rnd.nextFloat() * 0.96f, 0.02f + rnd.nextFloat() * 0.85f,
+                (1.8f + rnd.nextFloat() * 4.5f) * d, 1.2f + rnd.nextFloat() * 3.5f,
+                rnd.nextFloat() * 10f, tint
+            )
         }
 
-        fun updateAccent(newAccent: Int) { accentColor = newAccent; buildShaders(width, height); invalidate() }
-        fun setParallaxShift(shift: Float) { if (parallaxY != shift) { parallaxY = shift; invalidate() } }
+        fun updateAccent(newAccent: Int) {
+            accentColor = newAccent; buildShaders(width, height); invalidate()
+        }
+        fun setParallaxShift(shift: Float) {
+            if (parallaxY != shift) { parallaxY = shift; invalidate() }
+        }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
@@ -89,12 +116,19 @@ object LauncherBackground {
         private fun buildShaders(w: Int, h: Int) {
             if (w <= 0 || h <= 0) return
             skyPaint.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(Color.rgb(10, 16, 36), Color.rgb(18, 28, 56), Color.rgb(8, 12, 28)), floatArrayOf(0f, 0.50f, 1f), Shader.TileMode.CLAMP)
-            themeAuraPaint.shader = RadialGradient(w * 0.32f, h * 0.42f, w * 0.65f, intArrayOf(LauncherUtils.withAlpha(accentColor, 75), Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
+            themeAuraPaint.shader = RadialGradient(w * 0.32f, h * 0.42f, w * 0.65f, intArrayOf(LauncherUtils.withAlpha(accentColor, 65), Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
             
-            val moonX = w * 0.5f; val moonY = h * 0.15f; moonR = 24f * resources.displayMetrics.density
+            val moonX = w * 0.5f // TOP CENTER POSITION
+            val moonY = h * 0.15f
+            val moonR = 24f * resources.displayMetrics.density
 
-            naturalGlowPaint.shader = RadialGradient(moonX, moonY, w * 0.5f, intArrayOf(Color.argb(220, 255, 245, 190), Color.argb(90, 255, 220, 130), Color.argb(25, 255, 200, 100), Color.TRANSPARENT), floatArrayOf(0f, 0.12f, 0.35f, 1f), Shader.TileMode.CLAMP)
-            goldenRayPaint.shader = SweepGradient(0f, 0f, intArrayOf(Color.TRANSPARENT, Color.argb(45, 255, 215, 80), Color.TRANSPARENT, Color.argb(30, 255, 195, 60), Color.TRANSPARENT, Color.argb(45, 255, 215, 80), Color.TRANSPARENT), null)
+            // NATURAL DISSOLVING GLOW (No rings)
+            naturalGlowPaint.shader = RadialGradient(
+                moonX, moonY, w * 0.5f,
+                intArrayOf(Color.argb(220, 255, 245, 190), Color.argb(90, 255, 220, 130), Color.argb(25, 255, 200, 100), Color.TRANSPARENT),
+                floatArrayOf(0f, 0.12f, 0.35f, 1f), Shader.TileMode.CLAMP
+            )
+
             moonDiscPaint.shader = RadialGradient(moonX - moonR * 0.2f, moonY - moonR * 0.2f, moonR * 1.2f, intArrayOf(Color.rgb(255, 254, 245), Color.rgb(225, 236, 255)), null, Shader.TileMode.CLAMP)
         }
 
@@ -102,19 +136,29 @@ object LauncherBackground {
             val w = width.toFloat(); val h = height.toFloat()
             if (w <= 0f || h <= 0f) return
 
-            canvas.drawRect(0f, 0f, w, h, skyPaint); canvas.drawRect(0f, 0f, w, h, themeAuraPaint)
+            canvas.drawRect(0f, 0f, w, h, skyPaint)
+            canvas.drawRect(0f, 0f, w, h, themeAuraPaint)
 
-            val moonX = w * 0.5f; val moonY = h * 0.15f - parallaxY * 0.35f
-            
-            canvas.save(); canvas.translate(moonX, moonY); canvas.rotate((phase * 45f) % 360f); canvas.drawCircle(0f, 0f, moonR * 7f, goldenRayPaint); canvas.restore()
-            canvas.drawCircle(moonX, moonY, w * 0.5f, naturalGlowPaint); canvas.drawCircle(moonX, moonY, moonR, moonDiscPaint)
-            canvas.drawCircle(moonX - moonR * 0.32f, moonY - moonR * 0.18f, moonR * 0.22f, craterPaint); canvas.drawCircle(moonX + moonR * 0.28f, moonY + moonR * 0.24f, moonR * 0.16f, craterPaint)
+            val moonX = w * 0.5f // TOP CENTER
+            val moonY = h * 0.15f - parallaxY * 0.35f
+            val moonR = 24f * resources.displayMetrics.density
+
+            canvas.drawCircle(moonX, moonY, w * 0.5f, naturalGlowPaint) // Natural Glow
+            canvas.drawCircle(moonX, moonY, moonR, moonDiscPaint) // Moon Disc
+            canvas.drawCircle(moonX - moonR * 0.32f, moonY - moonR * 0.18f, moonR * 0.22f, craterPaint)
+            canvas.drawCircle(moonX + moonR * 0.28f, moonY + moonR * 0.24f, moonR * 0.16f, craterPaint)
 
             for (s in sparkles) {
-                val erraticWave = sin(phase * s.speed + s.offset) * cos(phase * s.speed * 0.6f + s.offset); val pulse = 0.3f + 0.7f * Math.abs(erraticWave)
-                val sx = s.xRatio * w; val sy = s.yRatio * h - parallaxY * 0.25f; val r = s.sizePx * (0.55f + 0.45f * pulse)
-                sparklePaint.color = LauncherUtils.withAlpha(s.tint, (pulse * 245).toInt()); starPath.reset(); val inner = r * 0.22f
-                starPath.moveTo(sx, sy - r); starPath.lineTo(sx + inner, sy - inner); starPath.lineTo(sx + r, sy); starPath.lineTo(sx + inner, sy + inner); starPath.lineTo(sx, sy + r); starPath.lineTo(sx - inner, sy + inner); starPath.lineTo(sx - r, sy); starPath.lineTo(sx - inner, sy - inner); starPath.close()
+                val erraticWave = sin(phase * s.speed + s.offset) * cos(phase * s.speed * 0.6f + s.offset)
+                val pulse = 0.3f + 0.7f * Math.abs(erraticWave)
+                val sx = s.xRatio * w; val sy = s.yRatio * h - parallaxY * 0.25f
+                val r = s.sizePx * (0.55f + 0.45f * pulse)
+                sparklePaint.color = LauncherUtils.withAlpha(s.tint, (pulse * 245).toInt())
+                
+                starPath.reset(); val inner = r * 0.22f
+                starPath.moveTo(sx, sy - r); starPath.lineTo(sx + inner, sy - inner); starPath.lineTo(sx + r, sy)
+                starPath.lineTo(sx + inner, sy + inner); starPath.lineTo(sx, sy + r); starPath.lineTo(sx - inner, sy + inner)
+                starPath.lineTo(sx - r, sy); starPath.lineTo(sx - inner, sy - inner); starPath.close()
                 canvas.drawPath(starPath, sparklePaint)
             }
         }
