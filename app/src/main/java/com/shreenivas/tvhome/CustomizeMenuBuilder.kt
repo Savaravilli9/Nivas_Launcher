@@ -22,6 +22,8 @@ object CustomizeMenuBuilder {
     private var activeSubBoxRef: LinearLayout? = null
     private var activeCloseDrawerRef: (() -> Unit)? = null
 
+    fun isSubMenuOpen(): Boolean = openSubMenu.isNotEmpty()
+
     fun closeSubMenuWithAnimation(onClosedCallback: (() -> Unit)? = null) {
         if (openSubMenu.isEmpty()) { onClosedCallback?.invoke(); return }
         val closedKey = openSubMenu
@@ -31,10 +33,14 @@ object CustomizeMenuBuilder {
 
         openSubMenu = ""; activeSubBoxRef = null; lastFocusedTag = "acc_$closedKey"
 
+        // ఫోకస్ ముందు పేరెంట్ కి ఇచ్చేయాలి
+        parentCard?.requestFocus()
+
+        // FIX: ముందే బాక్స్ ని రిమూవ్ చేస్తే LayoutTransition ఆటోమేటిక్ గా స్మూత్ గా ఫోల్డ్ చేస్తుంది!
         if (box != null && box.parent == panel) {
-            box.animate().alpha(0f).scaleY(0.85f).setDuration(150L).setInterpolator(LauncherUtils.SILKY_EASE)
-                .withEndAction { panel?.removeView(box); parentCard?.requestFocus(); onClosedCallback?.invoke() }.start()
-        } else { parentCard?.requestFocus(); onClosedCallback?.invoke() }
+            panel.removeView(box)
+        }
+        onClosedCallback?.invoke()
     }
 
     fun closeSubMenuAndNavigate(moveDown: Boolean) {
@@ -45,11 +51,6 @@ object CustomizeMenuBuilder {
 
         openSubMenu = ""; activeSubBoxRef = null; lastFocusedTag = "acc_$closedKey"
 
-        val savedTransition = panel.layoutTransition
-        panel.layoutTransition = null
-        if (parentCard != null) parentCard.requestFocus()
-        if (box != null && box.parent == panel) panel.removeView(box)
-
         if (parentCard != null) {
             if (!moveDown) {
                 parentCard.requestFocus(); lastFocusedTag = parentCard.tag as? String ?: ""
@@ -59,7 +60,11 @@ object CustomizeMenuBuilder {
                 target.requestFocus(); lastFocusedTag = target.tag as? String ?: ""
             }
         }
-        panel.post { panel.layoutTransition = savedTransition }
+        
+        // FIX: ఇక్కడ కూడా LayoutTransition ని డిసేబుల్ చేయకుండా డైరెక్ట్ గా రిమూవ్ చేస్తున్నాం
+        if (box != null && box.parent == panel) {
+            panel.removeView(box)
+        }
     }
 
     fun build(
@@ -72,12 +77,17 @@ object CustomizeMenuBuilder {
 
         ignoreFocusTrigger = true
         
-        // Fix: Smooth Accordion Animation
+        // FIX: ఓపెన్ అయ్యేటప్పుడు, క్లోజ్ అయ్యేటప్పుడు (APPEARING & DISAPPEARING) బటర్ స్మూత్ యానిమేషన్స్!
         panel.layoutTransition = LayoutTransition().apply { 
             setDuration(220L)
             enableTransitionType(LayoutTransition.CHANGING)
+            enableTransitionType(LayoutTransition.APPEARING)
+            enableTransitionType(LayoutTransition.DISAPPEARING)
             setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
+            setInterpolator(LayoutTransition.APPEARING, LauncherUtils.SILKY_EASE)
+            setInterpolator(LayoutTransition.DISAPPEARING, LauncherUtils.SILKY_EASE)
         }
+        
         panel.removeAllViews()
         val widthPct = lp.panelWidthPct
         val narrowMode = widthPct <= 22
@@ -122,13 +132,12 @@ object CustomizeMenuBuilder {
             setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f); v.background = glossyPillBg(ctx, false, f, lp.accentColor) }
             setOnClickListener { activeCloseDrawerRef?.invoke() }
         }
-        // Fixed Margin so it doesn't get clipped by scrollview
         panel.addView(backBtn, LinearLayout.LayoutParams(-1, dp(ctx, 42)).apply { topMargin = dp(ctx, 16); bottomMargin = dp(ctx, 32) })
 
         if (lastFocusedTag.isNotEmpty()) panel.findViewWithTag<View>(lastFocusedTag)?.requestFocus()
         panel.postDelayed({ ignoreFocusTrigger = false }, 180L)
     }
-    private fun addAccordionPair(
+        private fun addAccordionPair(
         ctx: Context, panel: LinearLayout, lp: LauncherPreferences, narrowMode: Boolean,
         k1: String, ic1: String, t1: String, v1: String, tint1: Int,
         k2: String, ic2: String, t2: String, v2: String, tint2: Int, onLiveRefresh: () -> Unit
@@ -152,13 +161,13 @@ object CustomizeMenuBuilder {
 
     private fun handleAccordionClick(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, key: String, clickedCard: LinearLayout, onLiveRefresh: () -> Unit) {
         if (key == openSubMenu) { closeSubMenuWithAnimation(); return }
+        
+        // ఒకవేళ పాత మెనూ ఓపెన్ ఉంటే, దాన్ని స్మూత్ గా రిమూవ్ చేస్తాం
         if (openSubMenu.isNotEmpty() && activeSubBoxRef != null) {
-            val saved = panel.layoutTransition
-            panel.layoutTransition = null
             panel.removeView(activeSubBoxRef)
-            panel.layoutTransition = saved
             activeSubBoxRef = null; openSubMenu = ""
         }
+        
         openSubMenu = key
         lastFocusedTag = "pill_${key}_sel"
         val rowOrCard = if (clickedCard.parent == panel) clickedCard else clickedCard.parent as View
@@ -307,10 +316,7 @@ object CustomizeMenuBuilder {
             foc -> intArrayOf(Color.argb(125, 255, 255, 255), Color.argb(80, 255, 255, 255))
             sel -> intArrayOf(Color.argb(95, 110, 165, 245), Color.argb(55, 75, 125, 210))
             else -> intArrayOf(Color.argb(58, 255, 255, 255), Color.argb(28, 255, 255, 255))
-        }).apply {
-            cornerRadius = LauncherUtils.dpF(ctx, 13f)
-            setStroke(dp(ctx, if (foc || sel) 2 else 1), if (foc || sel) accent else Color.argb(72, 255, 255, 255))
-        }
+        }).apply { cornerRadius = LauncherUtils.dpF(ctx, 13f); setStroke(dp(ctx, if (foc || sel) 2 else 1), if (foc || sel) accent else Color.argb(72, 255, 255, 255)) }
     }
 
     private fun addHeader(ctx: Context, panel: LinearLayout, txt: String) {
