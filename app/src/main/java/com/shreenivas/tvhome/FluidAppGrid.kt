@@ -17,55 +17,61 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
         clipToPadding = false
     }
 
-    // ఈ ఫంక్షన్ టైల్స్ ని ఒక్కసారిగా కట్ చేయకుండా, ఎలాస్టిక్ గా కొత్త చోటికి జరుపుతుంది
     fun updateGridState(newCols: Int, newTileW: Int, newTileH: Int, newGap: Int, animate: Boolean = true) {
         columns = newCols
+        gap = newGap
+        
+        val sizeChanged = (newTileW != tileW || newTileH != tileH) && childCount > 0
+        val oldTileW = tileW
+        val oldTileH = tileH
+        
         tileW = newTileW
         tileH = newTileH
-        gap = newGap
 
         for (i in 0 until childCount) {
             val child = getChildAt(i)
             val row = i / columns
             val col = i % columns
             
-            // ప్రతి టైల్ కి కొత్త స్థానం (X, Y)
             val targetX = col * (tileW + gap).toFloat()
             val targetY = row * (tileH + gap).toFloat()
 
             if (animate) {
-                // ఎగురుకుంటూ వచ్చే ఎలాస్టిక్ యానిమేషన్ (320ms - Syncs with Drawer)
                 child.animate()
                     .x(targetX).y(targetY)
-                    .setDuration(320L)
+                    .setDuration(450L)
                     .setInterpolator(LauncherUtils.FLUID_SPRING)
                     .start()
-
-                // సైజ్ మారితే స్మూత్ గా టైల్ ని సాగదీయడం
-                if (child.layoutParams.width != tileW || child.layoutParams.height != tileH) {
-                    val startW = child.layoutParams.width
-                    val startH = child.layoutParams.height
-                    ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 320L
-                        interpolator = LauncherUtils.FLUID_SPRING
-                        addUpdateListener { anim ->
-                            val f = anim.animatedValue as Float
-                            child.layoutParams.width = (startW + (tileW - startW) * f).toInt()
-                            child.layoutParams.height = (startH + (tileH - startH) * f).toInt()
-                            child.requestLayout()
-                        }
-                        start()
-                    }
-                }
             } else {
                 child.x = targetX
                 child.y = targetY
-                child.layoutParams.width = tileW
-                child.layoutParams.height = tileH
-                child.requestLayout()
+                if (sizeChanged) {
+                    child.layoutParams.width = tileW
+                    child.layoutParams.height = tileH
+                }
             }
         }
-        requestLayout() // కంటైనర్ హైట్ అప్‌డేట్
+        
+        if (!animate && sizeChanged) requestLayout()
+
+        if (animate && sizeChanged) {
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 450L
+                interpolator = LauncherUtils.FLUID_SPRING
+                addUpdateListener { anim ->
+                    val f = anim.animatedValue as Float
+                    val curW = (oldTileW + (tileW - oldTileW) * f).toInt()
+                    val curH = (oldTileH + (tileH - oldTileH) * f).toInt()
+                    for (i in 0 until childCount) {
+                        val c = getChildAt(i)
+                        c.layoutParams.width = curW
+                        c.layoutParams.height = curH
+                    }
+                    requestLayout() 
+                }
+                start()
+            }
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -74,5 +80,48 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
         val rows = ceil(childCount.toDouble() / columns).toInt()
         val totalH = rows * tileH + maxOf(0, rows - 1) * gap
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), totalH)
+    }
+
+    // ==========================================
+    // THE FIX: D-PAD SMART FOCUS ROUTER
+    // ==========================================
+    override fun focusSearch(focused: View, direction: Int): View? {
+        val index = indexOfChild(focused)
+        if (index < 0) return super.focusSearch(focused, direction)
+
+        val row = index / columns
+        val col = index % columns
+        val totalRows = ceil(childCount.toDouble() / columns).toInt()
+
+        return when (direction) {
+            View.FOCUS_RIGHT -> {
+                // కుడివైపుకి నొక్కినప్పుడు పక్కన యాప్ ఉంటే దానికి వెళ్తుంది
+                if (col < columns - 1 && index + 1 < childCount) getChildAt(index + 1)
+                else super.focusSearch(focused, direction) // చివర్లో ఉంటే సిస్టమ్‌కి వదిలేస్తుంది (ఉదా: సైడ్ ప్యానెల్‌కి వెళ్లడానికి)
+            }
+            View.FOCUS_LEFT -> {
+                // ఎడమవైపుకి నొక్కినప్పుడు వెనక యాప్ కి వెళ్తుంది
+                if (col > 0) getChildAt(index - 1)
+                else super.focusSearch(focused, direction)
+            }
+            View.FOCUS_DOWN -> {
+                // కిందకి నొక్కినప్పుడు కచ్చితంగా కింది యాప్ కే వెళ్తుంది.
+                if (row < totalRows - 1) {
+                    val nextIndex = minOf(index + columns, childCount - 1)
+                    getChildAt(nextIndex)
+                } else {
+                    focused // చిట్టచివరి వరుసలో కిందకి నొక్కితే ఎక్కడికీ జంప్ అవ్వకుండా అక్కడే లాక్ అవుతుంది
+                }
+            }
+            View.FOCUS_UP -> {
+                // పైకి నొక్కినప్పుడు పై యాప్ కి వెళ్తుంది
+                if (row > 0) {
+                    getChildAt(index - columns)
+                } else {
+                    super.focusSearch(focused, direction) // మొదటి వరుసలో పైకి నొక్కితే ఫేవరెట్స్ లేదా టాప్ బార్ కి వెళ్తుంది
+                }
+            }
+            else -> super.focusSearch(focused, direction)
+        }
     }
 }

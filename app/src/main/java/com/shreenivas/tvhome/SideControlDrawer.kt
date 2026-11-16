@@ -51,7 +51,7 @@ class SideControlDrawer(
         if (isOpen && mode == currentMode) close() else open(mode)
     }
 
-        fun open(mode: String) {
+    fun open(mode: String) {
         val wasOpen = isOpen
         currentMode = mode
         isOpen = true
@@ -72,16 +72,16 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() // This triggers FluidAppGrid animation simultaneously!
+            onLiveRefresh() 
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(320L).start()
+            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(450L).start() 
 
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(320L) // Matches exactly with FluidAppGrid duration
+                .setDuration(450L) 
                 .setInterpolator(LauncherUtils.FLUID_SPRING)
                 .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
@@ -94,13 +94,13 @@ class SideControlDrawer(
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        scrim.animate().alpha(0f).setDuration(200L).start()
+        scrim.animate().alpha(0f).setDuration(300L).start()
         
-        onLiveRefresh() // Grids snap back simultaneously!
+        onLiveRefresh() 
         
         drawerLayout.animate()
             .translationX(out.toFloat()).alpha(0f)
-            .setDuration(320L)
+            .setDuration(450L) 
             .setInterpolator(LauncherUtils.FLUID_SPRING)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
@@ -146,8 +146,7 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-
-    private fun populateActivePanel(isInitialOpen: Boolean) {
+        private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 

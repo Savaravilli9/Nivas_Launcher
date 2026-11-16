@@ -32,6 +32,7 @@
         <activity
             android:name="com.shreenivas.tvhome.MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize"
+            android:screenOrientation="landscape"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
