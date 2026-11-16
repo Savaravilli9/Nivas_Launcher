@@ -19,8 +19,9 @@ object AppGridManager {
     private var cachedApps: List<ResolveInfo>? = null
     private var lastAppSignature = ""
     private var lastFavSignature = ""
+    private var lastStyleSignature = "" // కొత్త లాజిక్: థీమ్స్ అప్లై అవ్వడానికి
 
-    fun clearCache() { cachedApps = null; lastAppSignature = ""; lastFavSignature = "" }
+    fun clearCache() { cachedApps = null; lastAppSignature = ""; lastFavSignature = ""; lastStyleSignature = "" }
 
     fun createHeader(ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null): LinearLayout {
         return LinearLayout(ctx).apply {
@@ -56,15 +57,18 @@ object AppGridManager {
         val favApps = favOrder.mapNotNull { byPkg[it] }
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) } else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
+        val currentStyleSig = "${lp.tileShape}_${lp.tileColor}_${lp.badgeMode}_${lp.tileSize}_${lp.columns}"
+
         val screenW = ctx.resources.displayMetrics.widthPixels
-        val sidePad = dp(ctx, 64) // MainActivity లో ఇచ్చిన 32dp left + 32dp right padding
+        val sidePad = dp(ctx, 64) 
         val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         
-        // పర్ఫెక్ట్ గా డ్రాయర్ మరియు ప్యాడింగ్ పోనూ మిగిలిన స్పేస్
-        val availableW = screenW - sidePad - drawerW
+        // Edge Margins: ఐకాన్స్ అంచులకి అంటుకోకుండా ఒక అందమైన గ్యాప్
+        val edgeMargin = dp(ctx, 24)
+        val availableW = screenW - sidePad - drawerW - (edgeMargin * 2)
 
         val baseGap = dp(ctx, 12)
-        val baseAvailableW = screenW - sidePad
+        val baseAvailableW = screenW - sidePad - (edgeMargin * 2)
         val baseCellW = (baseAvailableW - (baseGap * (lp.columns - 1))) / lp.columns
         
         var targetCols = lp.columns
@@ -78,16 +82,15 @@ object AppGridManager {
         val tileW = (cellW * scale).toInt()
         val tileH = (tileW * 0.85f).toInt()
         
-        // FIX: మిగిలిన స్థలాన్ని ఖాళీగా వదలకుండా, టైల్స్ మధ్య సమానంగా గ్యాప్ (dynamicGap) ఇస్తున్నాం
         val dynamicGap = if (targetCols > 1) (availableW - (targetCols * tileW)) / (targetCols - 1) else baseGap
 
-        // 1. Favorites Row Update
         val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
         if (favApps.isEmpty()) favSection.visibility = View.GONE
         else {
             favSection.visibility = View.VISIBLE
             favCount.text = "${favApps.size} Apps"
-            if (currentFavSig != lastFavSignature) {
+            // థీమ్ మారినప్పుడు రీబిల్డ్ అవుతుంది
+            if (currentFavSig != lastFavSignature || currentStyleSig != lastStyleSignature) {
                 favRow.removeAllViews()
                 favApps.forEachIndexed { idx, info -> 
                     val tile = AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions)
@@ -104,7 +107,7 @@ object AppGridManager {
                     
                     ValueAnimator.ofFloat(0f, 1f).apply {
                         val startW = p.width; val startH = p.height; val startR = p.rightMargin
-                        duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
+                        duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
                         addUpdateListener { anim ->
                             val f = anim.animatedValue as Float
                             p.width = (startW + (tileW - startW) * f).toInt()
@@ -118,23 +121,33 @@ object AppGridManager {
             }
         }
 
-        // 2. Main Grid Update
         allCount.text = "${sortedAll.size} Apps"
         val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName }
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
 
-        if (fluidGrid == null || currentAppSig != lastAppSignature) {
+        // థీమ్ మారినా లేదా యాప్స్ మారినా రీబిల్డ్ అవుతుంది
+        if (fluidGrid == null || currentAppSig != lastAppSignature || currentStyleSig != lastStyleSignature) {
             appGrid.removeAllViews()
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
             
-            // FIX: No margins given here. fluidGrid takes full MATCH_PARENT width!
-            appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            // Edge Margins అప్లై అవుతున్నాయి
+            appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                leftMargin = edgeMargin; rightMargin = edgeMargin
+            })
             
             val favSet = favOrder.toSet()
             sortedAll.forEach { info -> fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) }
+            
             lastAppSignature = currentAppSig
+            lastStyleSignature = currentStyleSig
             fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = false)
         } else {
+            (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
+                ValueAnimator.ofInt(p.leftMargin, edgeMargin).apply {
+                    duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
+                    addUpdateListener { p.leftMargin = it.animatedValue as Int; p.rightMargin = it.animatedValue as Int; fluidGrid.requestLayout() }; start()
+                }
+            }
             fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = true)
         }
 
