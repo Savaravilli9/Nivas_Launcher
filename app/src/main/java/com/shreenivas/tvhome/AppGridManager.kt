@@ -1,6 +1,5 @@
 package com.shreenivas.tvhome
 
-import android.animation.LayoutTransition
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
@@ -19,9 +18,14 @@ object AppGridManager {
     private var cachedApps: List<ResolveInfo>? = null
     private var lastAppSignature = ""
     private var lastFavSignature = ""
-    private var lastStyleSignature = "" // కొత్త లాజిక్: థీమ్స్ అప్లై అవ్వడానికి
+    private var lastStyleSignature = "" // కస్టమైజేషన్స్ మారాయో లేదో చెక్ చేయడానికి
 
-    fun clearCache() { cachedApps = null; lastAppSignature = ""; lastFavSignature = ""; lastStyleSignature = "" }
+    fun clearCache() { 
+        cachedApps = null
+        lastAppSignature = ""
+        lastFavSignature = ""
+        lastStyleSignature = "" 
+    }
 
     fun createHeader(ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null): LinearLayout {
         return LinearLayout(ctx).apply {
@@ -57,13 +61,13 @@ object AppGridManager {
         val favApps = favOrder.mapNotNull { byPkg[it] }
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) } else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
+        // కస్టమైజేషన్ ఆప్షన్స్ ని ఒక సిగ్నేచర్ లాగా రికార్డ్ చేయడం
         val currentStyleSig = "${lp.tileShape}_${lp.tileColor}_${lp.badgeMode}_${lp.tileSize}_${lp.columns}"
 
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64) 
         val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         
-        // Edge Margins: ఐకాన్స్ అంచులకి అంటుకోకుండా ఒక అందమైన గ్యాప్
         val edgeMargin = dp(ctx, 24)
         val availableW = screenW - sidePad - drawerW - (edgeMargin * 2)
 
@@ -89,7 +93,8 @@ object AppGridManager {
         else {
             favSection.visibility = View.VISIBLE
             favCount.text = "${favApps.size} Apps"
-            // థీమ్ మారినప్పుడు రీబిల్డ్ అవుతుంది
+            
+            // స్టైల్ మారినప్పుడు పాతవి డిలీట్ చేసి కొత్త స్టైల్ తో క్రియేట్ చేయాలి
             if (currentFavSig != lastFavSignature || currentStyleSig != lastStyleSignature) {
                 favRow.removeAllViews()
                 favApps.forEachIndexed { idx, info -> 
@@ -100,22 +105,25 @@ object AppGridManager {
                 }
                 lastFavSignature = currentFavSig
             } else {
+                // స్టైల్ మారనప్పుడు మాత్రమే సైజ్ అడ్జస్ట్‌మెంట్ యానిమేషన్ జరగాలి
                 for (i in 0 until favRow.childCount) {
                     val child = favRow.getChildAt(i)
                     val p = child.layoutParams as LinearLayout.LayoutParams
                     val targetRMargin = if (i < favRow.childCount - 1) dynamicGap else 0
                     
-                    ValueAnimator.ofFloat(0f, 1f).apply {
-                        val startW = p.width; val startH = p.height; val startR = p.rightMargin
-                        duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
-                        addUpdateListener { anim ->
-                            val f = anim.animatedValue as Float
-                            p.width = (startW + (tileW - startW) * f).toInt()
-                            p.height = (startH + (tileH - startH) * f).toInt()
-                            p.rightMargin = (startR + (targetRMargin - startR) * f).toInt()
-                            child.requestLayout()
+                    if (p.width != tileW || p.height != tileH || p.rightMargin != targetRMargin) {
+                        ValueAnimator.ofFloat(0f, 1f).apply {
+                            val startW = p.width; val startH = p.height; val startR = p.rightMargin
+                            duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
+                            addUpdateListener { anim ->
+                                val f = anim.animatedValue as Float
+                                p.width = (startW + (tileW - startW) * f).toInt()
+                                p.height = (startH + (tileH - startH) * f).toInt()
+                                p.rightMargin = (startR + (targetRMargin - startR) * f).toInt()
+                                child.requestLayout()
+                            }
+                            start()
                         }
-                        start()
                     }
                 }
             }
@@ -125,27 +133,38 @@ object AppGridManager {
         val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName }
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
 
-        // థీమ్ మారినా లేదా యాప్స్ మారినా రీబిల్డ్ అవుతుంది
+        // యాప్స్ మారినా లేదా థీమ్/స్టైల్ మారినా గ్రిడ్‌ని కొత్త స్టైల్స్ తో రీబిల్డ్ చేస్తాం
         if (fluidGrid == null || currentAppSig != lastAppSignature || currentStyleSig != lastStyleSignature) {
             appGrid.removeAllViews()
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
             
-            // Edge Margins అప్లై అవుతున్నాయి
             appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 leftMargin = edgeMargin; rightMargin = edgeMargin
             })
             
             val favSet = favOrder.toSet()
-            sortedAll.forEach { info -> fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) }
+            sortedAll.forEach { info -> 
+                fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) 
+            }
             
             lastAppSignature = currentAppSig
             lastStyleSignature = currentStyleSig
+            
+            // FIX: థీమ్ మారినప్పుడు animate = false ఇవ్వడం వల్ల 0,0 నుండి ఎగురుకుంటూ వచ్చే స్టక్ యానిమేషన్ ఆగిపోయి, డైరెక్ట్ గా కొత్త స్టైల్ అప్లై అవుతుంది.
             fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = false)
         } else {
+            // థీమ్ మారనప్పుడు (కేవలం డ్రాయర్ ఓపెన్/క్లోజ్ అయితే) ఫ్లూయిడ్ యానిమేషన్స్!
             (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
-                ValueAnimator.ofInt(p.leftMargin, edgeMargin).apply {
-                    duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
-                    addUpdateListener { p.leftMargin = it.animatedValue as Int; p.rightMargin = it.animatedValue as Int; fluidGrid.requestLayout() }; start()
+                if (p.leftMargin != edgeMargin) {
+                    ValueAnimator.ofInt(p.leftMargin, edgeMargin).apply {
+                        duration = 450L; interpolator = LauncherUtils.FLUID_SPRING
+                        addUpdateListener { 
+                            p.leftMargin = it.animatedValue as Int
+                            p.rightMargin = it.animatedValue as Int
+                            fluidGrid.requestLayout() 
+                        }
+                        start()
+                    }
                 }
             }
             fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = true)
