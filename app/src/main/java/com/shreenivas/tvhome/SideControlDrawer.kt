@@ -51,7 +51,7 @@ class SideControlDrawer(
         if (isOpen && mode == currentMode) close() else open(mode)
     }
 
-        fun open(mode: String) {
+    fun open(mode: String) {
         val wasOpen = isOpen
         currentMode = mode
         isOpen = true
@@ -72,21 +72,42 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() // This triggers FluidAppGrid animation simultaneously!
+            onLiveRefresh() 
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(320L).start()
+            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(450L).start() // Changed to 450ms
 
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(320L) // Matches exactly with FluidAppGrid duration
+                .setDuration(450L) // Changed to 450ms
                 .setInterpolator(LauncherUtils.FLUID_SPRING)
                 .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
         }
     }
+
+    fun close() {
+        if (!isOpen) return
+        isOpen = false; currentMode = ""
+        val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
+
+        drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        scrim.animate().alpha(0f).setDuration(300L).start() // Changed to 300ms
+        
+        onLiveRefresh() 
+        
+        drawerLayout.animate()
+            .translationX(out.toFloat()).alpha(0f)
+            .setDuration(450L) // Changed to 450ms
+            .setInterpolator(LauncherUtils.FLUID_SPRING)
+            .withEndAction {
+                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+                scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
+            }.start()
+    }
+
 
     fun close() {
         if (!isOpen) return
