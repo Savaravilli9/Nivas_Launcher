@@ -19,9 +19,14 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
 
     fun updateGridState(newCols: Int, newTileW: Int, newTileH: Int, newGap: Int, animate: Boolean = true) {
         columns = newCols
+        gap = newGap
+        
+        val sizeChanged = (newTileW != tileW || newTileH != tileH) && childCount > 0
+        val oldTileW = tileW
+        val oldTileH = tileH
+        
         tileW = newTileW
         tileH = newTileH
-        gap = newGap
 
         for (i in 0 until childCount) {
             val child = getChildAt(i)
@@ -32,38 +37,43 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
             val targetY = row * (tileH + gap).toFloat()
 
             if (animate) {
-                // యానిమేషన్ స్మూత్‌గా ఉండటానికి delay లేకుండా start చేయడం
+                // ఎక్స్, వై కదలికలకు GPU ఆక్సెలరేషన్ (Zero Lag)
                 child.animate()
                     .x(targetX).y(targetY)
                     .setDuration(450L)
                     .setInterpolator(LauncherUtils.FLUID_SPRING)
-                    .withLayer() // GPU ఆక్సెలరేషన్ వాడటం
                     .start()
-
-                if (child.layoutParams.width != tileW || child.layoutParams.height != tileH) {
-                    val startW = child.layoutParams.width
-                    val startH = child.layoutParams.height
-                    ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 450L
-                        interpolator = LauncherUtils.FLUID_SPRING
-                        addUpdateListener { anim ->
-                            val f = anim.animatedValue as Float
-                            child.layoutParams.width = (startW + (tileW - startW) * f).toInt()
-                            child.layoutParams.height = (startH + (tileH - startH) * f).toInt()
-                            child.requestLayout()
-                        }
-                        start()
-                    }
-                }
             } else {
                 child.x = targetX
                 child.y = targetY
-                child.layoutParams.width = tileW
-                child.layoutParams.height = tileH
-                child.requestLayout()
+                if (sizeChanged) {
+                    child.layoutParams.width = tileW
+                    child.layoutParams.height = tileH
+                }
             }
         }
-        requestLayout()
+        
+        if (!animate && sizeChanged) requestLayout()
+
+        // FIX: 151 యానిమేటర్స్‌కి బదులు ఒకే ఒక్క మాస్టర్ యానిమేటర్ వాడటం వల్ల స్టక్ అయ్యే సమస్య తీరింది!
+        if (animate && sizeChanged) {
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 450L
+                interpolator = LauncherUtils.FLUID_SPRING
+                addUpdateListener { anim ->
+                    val f = anim.animatedValue as Float
+                    val curW = (oldTileW + (tileW - oldTileW) * f).toInt()
+                    val curH = (oldTileH + (tileH - oldTileH) * f).toInt()
+                    for (i in 0 until childCount) {
+                        val c = getChildAt(i)
+                        c.layoutParams.width = curW
+                        c.layoutParams.height = curH
+                    }
+                    requestLayout() // సెకనుకు ఒక్కసారే లేఅవుట్ పాస్, 150 సార్లు కాదు!
+                }
+                start()
+            }
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
