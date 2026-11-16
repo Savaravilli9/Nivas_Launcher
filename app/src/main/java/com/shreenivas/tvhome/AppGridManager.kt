@@ -19,12 +19,9 @@ object AppGridManager {
 
     fun clearCache() { cachedApps = null }
 
-    fun createHeader(
-        ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null
-    ): LinearLayout {
+    fun createHeader(ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null): LinearLayout {
         return LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(ctx, 2), dp(ctx, 4), dp(ctx, 2), dp(ctx, 8))
 
             addView(View(ctx).apply {
@@ -45,8 +42,7 @@ object AppGridManager {
                     setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4)); isFocusable = true; background = badgeBg(ctx, false)
                     setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f); v.background = badgeBg(ctx, f) }
                     setOnClickListener {
-                        lp.sortOrder = if (lp.sortOrder == "za") "az" else "za"
-                        text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
+                        lp.sortOrder = if (lp.sortOrder == "za") "az" else "za"; text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
                         onSortChanged()
                     }
                 }
@@ -54,8 +50,7 @@ object AppGridManager {
             }
 
             addView(TextView(ctx).apply {
-                tag = "count_tv"
-                text = "0 Apps"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+                tag = "count_tv"; text = "0 Apps"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.argb(220, 215, 235, 255)); setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4))
                 background = badgeBg(ctx, false)
             })
@@ -77,37 +72,39 @@ object AppGridManager {
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
         else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
-        // Layout Transitions for Butter Smooth Column Rewrapping
+        // Enable CHANGING transition so views animate fluidly to their new positions
         val transition = LayoutTransition().apply {
             setDuration(220L)
             enableTransitionType(LayoutTransition.CHANGING)
             setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
         }
+        
         appGrid.layoutTransition = transition
         favRow.layoutTransition = transition
-
         favRow.removeAllViews(); appGrid.removeAllViews()
 
-        // PERF Math: Prevent tiny dots and calculate exact wraps
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
-        val availableW = screenW - sidePad - drawerW
-
         val gap = dp(ctx, 12)
-        val minTileW = dp(ctx, 95) // Prevents shrinking to dots!
         
+        // Fixed Icon Size Math to prevent squishing
+        val baseAvailableW = screenW - sidePad 
+        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
+        
+        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
+        val tileW = (baseCellW * scale).toInt()
+        val tileH = (tileW * 0.85f).toInt()
+        
+        val currentAvailableW = screenW - sidePad - if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         var targetCols = lp.columns
+        
         if (isDrawerOpen) {
-            val maxFittingCols = (availableW + gap) / (minTileW + gap)
-            targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
+             val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
+             targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
 
-        val totalGapW = gap * (targetCols - 1)
-        val tileW = ((availableW - totalGapW) / targetCols).coerceAtLeast(minTileW)
-        
-        val heightFactor = when (lp.tileSize) { "small" -> 0.72f; "large" -> 0.94f; else -> 0.82f }
-        val tileH = (tileW * heightFactor).toInt()
+        val currentCellW = (currentAvailableW - (gap * (targetCols - 1))) / targetCols
+        val sideMargin = maxOf(0, (currentCellW - tileW) / 2)
 
         var focusTarget: View? = null
 
@@ -119,7 +116,9 @@ object AppGridManager {
                 val pkg = info.activityInfo.packageName
                 val tile = AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions)
                 if (restorePkg == pkg || (restorePkg == null && idx == 0)) focusTarget = tile
-                favRow.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply { if (idx < favApps.lastIndex) rightMargin = gap })
+                favRow.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
+                    leftMargin = sideMargin; rightMargin = sideMargin
+                })
             }
         }
 
@@ -130,7 +129,9 @@ object AppGridManager {
         sortedAll.forEachIndexed { idx, info ->
             if (idx % targetCols == 0) {
                 rowLayout = LinearLayout(ctx).apply { 
-                    orientation = LinearLayout.HORIZONTAL; clipChildren = false
+                    orientation = LinearLayout.HORIZONTAL
+                    clipChildren = false
+                    // Also enable layout transition on the row layouts for smooth wrapping
                     layoutTransition = transition 
                 }
                 appGrid.addView(rowLayout, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = gap })
@@ -140,7 +141,7 @@ object AppGridManager {
             if (focusTarget == null && (restorePkg == pkg || (restorePkg == null && idx == 0))) focusTarget = tile
             
             rowLayout?.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
-                if ((idx % targetCols) < targetCols - 1) rightMargin = gap
+                leftMargin = sideMargin; rightMargin = sideMargin
             })
         }
 
@@ -152,8 +153,7 @@ object AppGridManager {
         val map = LinkedHashMap<String, ResolveInfo>()
         LauncherUtils.addApps(pm, "android.intent.category.LEANBACK_LAUNCHER", map)
         LauncherUtils.addApps(pm, "android.intent.category.LAUNCHER", map)
-        val result = map.values.toList()
-        cachedApps = result; return result
+        val result = map.values.toList(); cachedApps = result; return result
     }
 
     private fun badgeBg(ctx: Context, focused: Boolean) = GradientDrawable().apply {
