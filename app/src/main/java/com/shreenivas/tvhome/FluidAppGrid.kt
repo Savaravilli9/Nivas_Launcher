@@ -17,7 +17,6 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
         clipToPadding = false
     }
 
-    // ఈ ఫంక్షన్ టైల్స్ ని ఒక్కసారిగా కట్ చేయకుండా, ఎలాస్టిక్ గా కొత్త చోటికి జరుపుతుంది
     fun updateGridState(newCols: Int, newTileW: Int, newTileH: Int, newGap: Int, animate: Boolean = true) {
         columns = newCols
         tileW = newTileW
@@ -29,24 +28,22 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
             val row = i / columns
             val col = i % columns
             
-            // ప్రతి టైల్ కి కొత్త స్థానం (X, Y)
             val targetX = col * (tileW + gap).toFloat()
             val targetY = row * (tileH + gap).toFloat()
 
             if (animate) {
-                // ఎగురుకుంటూ వచ్చే ఎలాస్టిక్ యానిమేషన్ (320ms - Syncs with Drawer)
+                // 450ms for Butter-smooth elastic glide
                 child.animate()
                     .x(targetX).y(targetY)
-                    .setDuration(320L)
+                    .setDuration(450L)
                     .setInterpolator(LauncherUtils.FLUID_SPRING)
                     .start()
 
-                // సైజ్ మారితే స్మూత్ గా టైల్ ని సాగదీయడం
                 if (child.layoutParams.width != tileW || child.layoutParams.height != tileH) {
                     val startW = child.layoutParams.width
                     val startH = child.layoutParams.height
                     ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 320L
+                        duration = 450L
                         interpolator = LauncherUtils.FLUID_SPRING
                         addUpdateListener { anim ->
                             val f = anim.animatedValue as Float
@@ -65,7 +62,7 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
                 child.requestLayout()
             }
         }
-        requestLayout() // కంటైనర్ హైట్ అప్‌డేట్
+        requestLayout()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
