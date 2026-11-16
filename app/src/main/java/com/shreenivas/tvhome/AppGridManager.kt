@@ -72,38 +72,39 @@ object AppGridManager {
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
         else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
-        // Fluid Layout Transitions
+        // Enable CHANGING transition so views animate fluidly to their new positions
         val transition = LayoutTransition().apply {
             setDuration(220L)
             enableTransitionType(LayoutTransition.CHANGING)
             setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
         }
+        
         appGrid.layoutTransition = transition
         favRow.layoutTransition = transition
         favRow.removeAllViews(); appGrid.removeAllViews()
 
-        // Dynamic Math for Perfect Icons (No cropping, no tiny dots)
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
-        val availableW = screenW - sidePad - drawerW
-
         val gap = dp(ctx, 12)
+        
+        // Fixed Icon Size Math to prevent squishing
+        val baseAvailableW = screenW - sidePad 
+        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
+        
+        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
+        val tileW = (baseCellW * scale).toInt()
+        val tileH = (tileW * 0.85f).toInt()
+        
+        val currentAvailableW = screenW - sidePad - if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         var targetCols = lp.columns
         
-        // Adjust columns smoothly when drawer opens
         if (isDrawerOpen) {
-            val dropCols = (lp.columns * (lp.panelWidthPct / 100f)).toInt().coerceAtLeast(1)
-            targetCols = maxOf(3, lp.columns - dropCols)
+             val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
+             targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
 
-        val totalGapW = gap * (targetCols - 1)
-        val cellW = (availableW - totalGapW) / targetCols
-        
-        val scale = when (lp.tileSize) { "small" -> 0.70f; "large" -> 0.94f; else -> 0.82f }
-        val tileW = (cellW * scale).toInt()
-        val tileH = (tileW * 0.85f).toInt()
-        val sideMargin = (cellW - tileW) / 2
+        val currentCellW = (currentAvailableW - (gap * (targetCols - 1))) / targetCols
+        val sideMargin = maxOf(0, (currentCellW - tileW) / 2)
 
         var focusTarget: View? = null
 
@@ -127,7 +128,12 @@ object AppGridManager {
 
         sortedAll.forEachIndexed { idx, info ->
             if (idx % targetCols == 0) {
-                rowLayout = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; layoutTransition = transition }
+                rowLayout = LinearLayout(ctx).apply { 
+                    orientation = LinearLayout.HORIZONTAL
+                    clipChildren = false
+                    // Also enable layout transition on the row layouts for smooth wrapping
+                    layoutTransition = transition 
+                }
                 appGrid.addView(rowLayout, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = gap })
             }
             val pkg = info.activityInfo.packageName
