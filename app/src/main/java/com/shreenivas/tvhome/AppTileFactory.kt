@@ -1,5 +1,6 @@
 package com.shreenivas.tvhome
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
@@ -10,6 +11,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -25,119 +27,165 @@ object AppTileFactory {
     }
 
     fun create(
-        ctx: Context,
-        pm: PackageManager,
-        lp: LauncherPreferences,
-        info: ResolveInfo,
-        isFavSection: Boolean,
-        isFavorite: Boolean,
-        tileWidth: Int,
-        tileHeight: Int,
-        actions: TileActions
+        ctx: Context, pm: PackageManager, lp: LauncherPreferences,
+        info: ResolveInfo, isFavRow: Boolean, isFav: Boolean,
+        w: Int, h: Int, actions: TileActions
     ): View {
         val pkg = info.activityInfo.packageName
         val label = info.loadLabel(pm).toString()
-        val shapeMode = lp.tileShape
-        val themeKey = lp.tileColor
-        val badgeMode = lp.badgeMode
+        val icon = info.loadIcon(pm)
 
-        // Fixed: Use GlowTileLayout to enable Custom Shape & Glow Effects!
-        val tile = GlowTileLayout(ctx).apply {
-            tag = if (isFavSection) "fav_$pkg" else "all_$pkg"
-            setPadding(dp(ctx, 10), dp(ctx, 8), dp(ctx, 10), dp(ctx, 8))
+        // 1. ఔటర్ కంటైనర్ (ఇది కట్ అవ్వకుండా సేఫ్ బౌండరీ ఇస్తుంది)
+        val wrapper = FrameLayout(ctx).apply {
+            layoutParams = LinearLayout.LayoutParams(w, h)
+            clipChildren = false
+            clipToPadding = false
             isFocusable = true
             isClickable = true
-            setStyle(lp.accentColor, shapeMode, themeKey)
+            tag = if (isFavRow) "fav_$pkg" else "all_$pkg"
         }
 
-        val innerBox = LinearLayout(ctx).apply {
+        // 2. ఇన్నర్ కార్డ్ (ఇది స్కేల్ అవుతుంది మరియు గ్లో అవుతుంది)
+        val safeMargin = LauncherUtils.dp(ctx, 10) // 10dp సేఫ్ జోన్ 
+        val innerCard = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
+            isFocusable = false
+            isClickable = false
+            clipChildren = false
         }
-        tile.addView(innerBox, FrameLayout.LayoutParams(-1, -1))
-
-        val iconWrap = FrameLayout(ctx)
-        val iconPx = (tileHeight * if (shapeMode == "circle" || shapeMode == "heart") 0.36f else 0.42f).toInt()
-        val icon = ImageView(ctx).apply {
-            setImageDrawable(info.loadIcon(pm))
-            scaleType = ImageView.ScaleType.FIT_CENTER
+        
+        val cardParams = FrameLayout.LayoutParams(-1, -1).apply {
+            setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
-        iconWrap.addView(icon, FrameLayout.LayoutParams(iconPx, iconPx, Gravity.CENTER))
 
-        val badgeInfo = resolveBadgeVector(badgeMode, isFavorite)
-        if (badgeInfo != null) {
-            val badgeSize = dp(ctx, 20)
-            val badgeContainer = FrameLayout(ctx).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.argb(190, 14, 22, 52))
-                    setStroke(dp(ctx, 1), badgeInfo.second)
+        // డైనమిక్ బ్యాక్‌గ్రౌండ్ & షేప్
+        val bg = GradientDrawable().apply {
+            shape = if (lp.tileShape == "circle") GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            if (lp.tileShape != "circle") {
+                cornerRadius = when(lp.tileShape) {
+                    "squircle" -> LauncherUtils.dpF(ctx, 22f)
+                    "heart" -> LauncherUtils.dpF(ctx, 18f)
+                    else -> LauncherUtils.dpF(ctx, 12f)
                 }
             }
-            badgeContainer.addView(
-                VectorIconView(ctx, badgeInfo.first, badgeInfo.second),
-                FrameLayout.LayoutParams(dp(ctx, 11), dp(ctx, 11), Gravity.CENTER)
-            )
-            iconWrap.addView(
-                badgeContainer,
-                FrameLayout.LayoutParams(badgeSize, badgeSize, Gravity.TOP or Gravity.END).apply {
-                    topMargin = dp(ctx, 2)
-                    rightMargin = dp(ctx, 2)
-                }
-            )
+            // గ్లాసీ ఎఫెక్ట్
+            orientation = GradientDrawable.Orientation.TL_BR
+            colors = intArrayOf(Color.argb(140, 32, 42, 75), Color.argb(80, 20, 28, 55))
+            setStroke(LauncherUtils.dp(ctx, 1), Color.argb(40, 255, 255, 255))
         }
-        innerBox.addView(iconWrap, LinearLayout.LayoutParams(-1, 0, 1f))
+        innerCard.background = bg
 
-        val title = TextView(ctx).apply {
+        // యాప్ ఐకాన్ సైజింగ్
+        val imgSize = when (lp.tileSize) {
+            "large" -> dp(ctx, 52)
+            "small" -> dp(ctx, 34)
+            else -> dp(ctx, 42)
+        }
+        val iv = ImageView(ctx).apply {
+            setImageDrawable(icon)
+            layoutParams = LinearLayout.LayoutParams(imgSize, imgSize).apply {
+                bottomMargin = dp(ctx, 4)
+            }
+        }
+        innerCard.addView(iv)
+
+        // యాప్ టైటిల్
+        val tv = TextView(ctx).apply {
             text = label
-            textSize = if (shapeMode == "circle" || shapeMode == "heart") 11f else 12.5f
-            typeface = Typeface.DEFAULT_BOLD
+            textSize = if (lp.columns > 6) 9f else 10.5f
             setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(4f, 0f, 1.5f, Color.argb(175, 0, 0, 0))
-            setPadding(dp(ctx, 4), dp(ctx, 4), dp(ctx, 4), dp(ctx, 2))
+            gravity = Gravity.CENTER
+            setPadding(dp(ctx, 6), 0, dp(ctx, 6), 0)
         }
-        innerBox.addView(title, LinearLayout.LayoutParams(-1, -2))
+        innerCard.addView(tv)
+        wrapper.addView(innerCard, cardParams)
 
-        tile.setOnClickListener {
-            val launch = pm.getLaunchIntentForPackage(pkg)
-            if (launch != null) {
-                ctx.startActivity(launch)
+        // ఐకాన్ బ్యాడ్జ్
+        if (lp.badgeMode != "none") {
+            val badge = TextView(ctx).apply {
+                text = when(lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
+                textSize = 9.5f
+                setTextColor(if(lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.argb(220, 15, 20, 35))
+                }
+                gravity = Gravity.CENTER
+            }
+            wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx,18), dp(ctx,18), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(ctx, 4); rightMargin = dp(ctx, 4)
+            })
+        }
+
+        // ==========================================
+        // YOUTUBE-STYLE BREATHING GLOW ANIMATION
+        // ==========================================
+        var breathingAnim: ValueAnimator? = null
+
+        wrapper.setOnFocusChangeListener { _, hasFocus ->
+            val targetScale = if (hasFocus) 1.15f else 1.0f
+            
+            // బటర్-స్మూత్ స్కేల్ ఎఫెక్ట్
+            innerCard.animate()
+                .scaleX(targetScale).scaleY(targetScale)
+                .setDuration(220L)
+                .setInterpolator(LauncherUtils.FLUID_SPRING)
+                .start()
+
+            if (hasFocus) {
+                innerCard.elevation = LauncherUtils.dpF(ctx, 14f)
+                tv.isSelected = true // లాంగ్ టెక్స్ట్ ఉంటే స్క్రోల్ అవ్వడానికి (Marquee)
+                
+                // నియాన్ బ్రీతింగ్ (In & Out Glow)
+                breathingAnim = ValueAnimator.ofInt(40, 255).apply {
+                    duration = 850L // శ్వాస తీసుకున్నంత స్లోగా
+                    repeatMode = ValueAnimator.REVERSE
+                    repeatCount = ValueAnimator.INFINITE
+                    interpolator = AccelerateDecelerateInterpolator()
+                    addUpdateListener {
+                        val alpha = it.animatedValue as Int
+                        // యాసెంట్ కలర్ తో స్ట్రోక్ బ్లింక్ అవుతుంది
+                        bg.setStroke(LauncherUtils.dp(ctx, 2), LauncherUtils.withAlpha(lp.accentColor, alpha))
+                        innerCard.background = bg 
+                    }
+                    start()
+                }
             } else {
-                Toast.makeText(ctx, "Cannot open $label", Toast.LENGTH_SHORT).show()
+                tv.isSelected = false
+                innerCard.elevation = 0f
+                breathingAnim?.cancel() // ఫోకస్ పోగానే యానిమేషన్ ఆగిపోతుంది
+                bg.setStroke(LauncherUtils.dp(ctx, 1), Color.argb(40, 255, 255, 255))
+                innerCard.background = bg
             }
         }
 
-        tile.setOnLongClickListener {
-            AppActionDialog.show(
-                ctx, pkg, label, isFavorite, true, true, lp.accentColor,
-                { actions.onToggleFavorite(pkg, label) },
-                { delta -> actions.onMoveFavorite(pkg, delta) },
-                { actions.onHideApp(pkg, label) }
-            )
-            true
+        // క్లిక్ మరియు లాంగ్ క్లిక్ యాక్షన్స్
+        wrapper.setOnClickListener {
+            try {
+                ctx.startActivity(pm.getLaunchIntentForPackage(pkg))
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "App not found", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        tile.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_MENU) {
-                tile.performLongClick()
+        wrapper.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && (keyCode == KeyEvent.KEYCODE_MENU || (keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.isLongPress))) {
+                actions.onToggleFavorite(pkg, label)
                 true
             } else false
         }
 
-        return tile
-    }
-
-    private fun resolveBadgeVector(badgeMode: String, isFav: Boolean): Pair<String, Int>? {
-        return when (badgeMode) {
-            "none" -> null
-            "heart" -> "heart" to if (isFav) Color.rgb(255, 85, 130) else Color.argb(130, 255, 255, 255)
-            "blue" -> "sparkle" to if (isFav) Color.rgb(75, 195, 255) else Color.argb(130, 255, 255, 255)
-            else -> "sparkle" to if (isFav) Color.rgb(255, 215, 65) else Color.argb(130, 255, 255, 255)
+        wrapper.setOnLongClickListener {
+            actions.onToggleFavorite(pkg, label)
+            true
         }
+
+        return wrapper
     }
 
-    private fun dp(ctx: Context, value: Int) = LauncherUtils.dp(ctx, value)
+    private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
 }
