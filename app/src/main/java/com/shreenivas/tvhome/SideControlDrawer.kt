@@ -74,14 +74,14 @@ class SideControlDrawer(
         if (!wasOpen) {
             onLiveRefresh() 
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(450L).start() // Changed to 450ms
+            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(450L).start() 
 
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(450L) // Changed to 450ms
+                .setDuration(450L) 
                 .setInterpolator(LauncherUtils.FLUID_SPRING)
                 .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
@@ -94,34 +94,13 @@ class SideControlDrawer(
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        scrim.animate().alpha(0f).setDuration(300L).start() // Changed to 300ms
+        scrim.animate().alpha(0f).setDuration(300L).start()
         
         onLiveRefresh() 
         
         drawerLayout.animate()
             .translationX(out.toFloat()).alpha(0f)
-            .setDuration(450L) // Changed to 450ms
-            .setInterpolator(LauncherUtils.FLUID_SPRING)
-            .withEndAction {
-                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
-            }.start()
-    }
-
-
-    fun close() {
-        if (!isOpen) return
-        isOpen = false; currentMode = ""
-        val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
-
-        drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        scrim.animate().alpha(0f).setDuration(200L).start()
-        
-        onLiveRefresh() // Grids snap back simultaneously!
-        
-        drawerLayout.animate()
-            .translationX(out.toFloat()).alpha(0f)
-            .setDuration(320L)
+            .setDuration(450L) 
             .setInterpolator(LauncherUtils.FLUID_SPRING)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
@@ -167,8 +146,7 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-
-    private fun populateActivePanel(isInitialOpen: Boolean) {
+        private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 
