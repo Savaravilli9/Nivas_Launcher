@@ -1,5 +1,6 @@
 package com.shreenivas.tvhome
 
+import android.animation.LayoutTransition
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
@@ -43,36 +44,44 @@ object AppGridManager {
     }
 
     fun populate(
-        ctx: Context, lp: LauncherPreferences, favSection: LinearLayout, favRow: LinearLayout, favCount: TextView,
-        appGrid: LinearLayout, allCount: TextView, shouldRequestFocus: Boolean, restorePkg: String?, isDrawerOpen: Boolean, actions: AppTileFactory.TileActions
+        ctx: Context, lp: LauncherPreferences, favSection: LinearLayout, favRow: LinearLayout,
+        favCount: TextView, appGrid: LinearLayout, allCount: TextView,
+        shouldRequestFocus: Boolean, restorePkg: String?, isDrawerOpen: Boolean,
+        actions: AppTileFactory.TileActions
     ) {
         val pm = ctx.packageManager
         val visibleApps = getInstalledApps(pm).filter { !lp.getHiddenApps().contains(it.activityInfo.packageName) }
         val byPkg = visibleApps.associateBy { it.activityInfo.packageName }
         val favOrder = lp.getOrderedFavorites()
         val favApps = favOrder.mapNotNull { byPkg[it] }
-
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) } else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
 
         val screenW = ctx.resources.displayMetrics.widthPixels
-        val sidePad = dp(ctx, 64)
-        val gap = dp(ctx, 12)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
-        val currentAvailableW = screenW - sidePad - drawerW
+        val sidePad = dp(ctx, 64) // MainActivity లో ఇచ్చిన 32dp left + 32dp right padding
+        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
+        
+        // పర్ఫెక్ట్ గా డ్రాయర్ మరియు ప్యాడింగ్ పోనూ మిగిలిన స్పేస్
+        val availableW = screenW - sidePad - drawerW
 
+        val baseGap = dp(ctx, 12)
         val baseAvailableW = screenW - sidePad
-        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
-        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
-        val tileW = (baseCellW * scale).toInt()
-        val tileH = (tileW * 0.85f).toInt()
+        val baseCellW = (baseAvailableW - (baseGap * (lp.columns - 1))) / lp.columns
         
         var targetCols = lp.columns
         if (isDrawerOpen) {
-             val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
+             val maxFittingCols = (availableW + baseGap) / (baseCellW + baseGap)
              targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
-        val sideMargin = maxOf(0, ((currentAvailableW - (gap * (targetCols - 1))) / targetCols - tileW) / 2)
 
+        val scale = when (lp.tileSize) { "small" -> 0.72f; "large" -> 0.96f; else -> 0.85f }
+        val cellW = availableW / targetCols
+        val tileW = (cellW * scale).toInt()
+        val tileH = (tileW * 0.85f).toInt()
+        
+        // FIX: మిగిలిన స్థలాన్ని ఖాళీగా వదలకుండా, టైల్స్ మధ్య సమానంగా గ్యాప్ (dynamicGap) ఇస్తున్నాం
+        val dynamicGap = if (targetCols > 1) (availableW - (targetCols * tileW)) / (targetCols - 1) else baseGap
+
+        // 1. Favorites Row Update
         val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
         if (favApps.isEmpty()) favSection.visibility = View.GONE
         else {
@@ -80,16 +89,36 @@ object AppGridManager {
             favCount.text = "${favApps.size} Apps"
             if (currentFavSig != lastFavSignature) {
                 favRow.removeAllViews()
-                favApps.forEach { info -> favRow.addView(AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions), LinearLayout.LayoutParams(tileW, tileH).apply { leftMargin = sideMargin; rightMargin = sideMargin }) }
+                favApps.forEachIndexed { idx, info -> 
+                    val tile = AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions)
+                    favRow.addView(tile, LinearLayout.LayoutParams(tileW, tileH).apply {
+                        if (idx < favApps.lastIndex) rightMargin = dynamicGap
+                    })
+                }
                 lastFavSignature = currentFavSig
             } else {
                 for (i in 0 until favRow.childCount) {
                     val child = favRow.getChildAt(i)
-                    animateLayoutParams(child, tileW, tileH, sideMargin, sideMargin)
+                    val p = child.layoutParams as LinearLayout.LayoutParams
+                    val targetRMargin = if (i < favRow.childCount - 1) dynamicGap else 0
+                    
+                    ValueAnimator.ofFloat(0f, 1f).apply {
+                        val startW = p.width; val startH = p.height; val startR = p.rightMargin
+                        duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
+                        addUpdateListener { anim ->
+                            val f = anim.animatedValue as Float
+                            p.width = (startW + (tileW - startW) * f).toInt()
+                            p.height = (startH + (tileH - startH) * f).toInt()
+                            p.rightMargin = (startR + (targetRMargin - startR) * f).toInt()
+                            child.requestLayout()
+                        }
+                        start()
+                    }
                 }
             }
         }
 
+        // 2. Main Grid Update
         allCount.text = "${sortedAll.size} Apps"
         val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName }
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
@@ -97,20 +126,16 @@ object AppGridManager {
         if (fluidGrid == null || currentAppSig != lastAppSignature) {
             appGrid.removeAllViews()
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
-            appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = sideMargin; rightMargin = sideMargin })
+            
+            // FIX: No margins given here. fluidGrid takes full MATCH_PARENT width!
+            appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            
             val favSet = favOrder.toSet()
             sortedAll.forEach { info -> fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) }
             lastAppSignature = currentAppSig
-            fluidGrid.updateGridState(targetCols, tileW, tileH, gap, animate = false)
+            fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = false)
         } else {
-            // THE MAGIC: Just animate existing tiles elastically!
-            (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
-                ValueAnimator.ofInt(p.leftMargin, sideMargin).apply {
-                    duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
-                    addUpdateListener { p.leftMargin = it.animatedValue as Int; p.rightMargin = it.animatedValue as Int; fluidGrid.requestLayout() }; start()
-                }
-            }
-            fluidGrid.updateGridState(targetCols, tileW, tileH, gap, animate = true)
+            fluidGrid.updateGridState(targetCols, tileW, tileH, dynamicGap, animate = true)
         }
 
         if (shouldRequestFocus) {
@@ -119,24 +144,11 @@ object AppGridManager {
         }
     }
 
-    private fun animateLayoutParams(view: View, w: Int, h: Int, lMargin: Int, rMargin: Int) {
-        val p = view.layoutParams as? LinearLayout.LayoutParams ?: return
-        val startW = p.width; val startH = p.height; val startL = p.leftMargin; val startR = p.rightMargin
-        if (startW == w && startL == lMargin) return
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
-            addUpdateListener {
-                val f = it.animatedValue as Float
-                p.width = (startW + (w - startW) * f).toInt(); p.height = (startH + (h - startH) * f).toInt()
-                p.leftMargin = (startL + (lMargin - startL) * f).toInt(); p.rightMargin = (startR + (rMargin - startR) * f).toInt()
-                view.requestLayout()
-            }; start()
-        }
-    }
-
     private fun getInstalledApps(pm: PackageManager): List<ResolveInfo> {
-        cachedApps?.let { return it }; val map = LinkedHashMap<String, ResolveInfo>()
-        LauncherUtils.addApps(pm, "android.intent.category.LEANBACK_LAUNCHER", map); LauncherUtils.addApps(pm, "android.intent.category.LAUNCHER", map)
+        cachedApps?.let { return it }
+        val map = LinkedHashMap<String, ResolveInfo>()
+        LauncherUtils.addApps(pm, "android.intent.category.LEANBACK_LAUNCHER", map)
+        LauncherUtils.addApps(pm, "android.intent.category.LAUNCHER", map)
         val result = map.values.toList(); cachedApps = result; return result
     }
 
