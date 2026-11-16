@@ -32,11 +32,12 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
             val targetY = row * (tileH + gap).toFloat()
 
             if (animate) {
-                // 450ms for Butter-smooth elastic glide
+                // యానిమేషన్ స్మూత్‌గా ఉండటానికి delay లేకుండా start చేయడం
                 child.animate()
                     .x(targetX).y(targetY)
                     .setDuration(450L)
                     .setInterpolator(LauncherUtils.FLUID_SPRING)
+                    .withLayer() // GPU ఆక్సెలరేషన్ వాడటం
                     .start()
 
                 if (child.layoutParams.width != tileW || child.layoutParams.height != tileH) {
