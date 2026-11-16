@@ -251,14 +251,29 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun applyLiveVisuals() {
+        private fun applyLiveVisuals() {
         topNavBar.refreshGreeting()
         LauncherBackground.updateThemeAndAccent(rootLayout, lp)
+        
         val newW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
-        if (drawerLayout.layoutParams.width != newW) {
+        val currentW = drawerLayout.layoutParams.width
+        
+        // ప్యానెల్ విడ్త్ మార్చినప్పుడు ఎలాస్టిక్ గా సాగదీయడం
+        if (currentW != newW && currentW > 0 && sideDrawer.isOpen) {
+            android.animation.ValueAnimator.ofInt(currentW, newW).apply {
+                duration = 320L
+                interpolator = LauncherUtils.FLUID_SPRING
+                addUpdateListener { anim ->
+                    drawerLayout.layoutParams.width = anim.animatedValue as Int
+                    drawerLayout.requestLayout()
+                }
+                start()
+            }
+        } else if (currentW != newW) {
             drawerLayout.layoutParams.width = newW
             drawerLayout.requestLayout()
         }
+        
         refreshApps(!sideDrawer.isOpen)
     }
 
