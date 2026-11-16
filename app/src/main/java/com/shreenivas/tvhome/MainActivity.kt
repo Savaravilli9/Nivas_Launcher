@@ -124,10 +124,15 @@ class MainActivity : Activity() {
         }
     }
 
-    @Deprecated("Deprecated in Java")
+        @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (sideDrawer.isOpen) {
-            sideDrawer.close()
+            // FIX: డ్రాయర్ క్లోజ్ చేసే ముందు, లోపల మెనూ ఓపెన్ ఉంటే దాన్ని క్లోజ్ చేయాలి
+            if (CustomizeMenuBuilder.isSubMenuOpen()) {
+                CustomizeMenuBuilder.closeSubMenuWithAnimation()
+            } else {
+                sideDrawer.close()
+            }
         } else {
             @Suppress("DEPRECATION")
             super.onBackPressed()
