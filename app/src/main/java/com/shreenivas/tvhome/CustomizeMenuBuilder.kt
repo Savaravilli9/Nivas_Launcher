@@ -26,44 +26,72 @@ object CustomizeMenuBuilder {
 
     fun closeSubMenuWithAnimation(onClosedCallback: (() -> Unit)? = null) {
         if (openSubMenu.isEmpty()) { onClosedCallback?.invoke(); return }
+        
         val closedKey = openSubMenu
         val panel = activePanelRef
-        val parentCard = panel?.findViewWithTag<View>("acc_$closedKey")
-        val box = activeSubBoxRef
-
-        openSubMenu = ""; activeSubBoxRef = null; lastFocusedTag = "acc_$closedKey"
-
-        // ఫోకస్ ముందు పేరెంట్ కి ఇచ్చేయాలి
-        parentCard?.requestFocus()
-
-        // FIX: ముందే బాక్స్ ని రిమూవ్ చేస్తే LayoutTransition ఆటోమేటిక్ గా స్మూత్ గా ఫోల్డ్ చేస్తుంది!
-        if (box != null && box.parent == panel) {
-            panel.removeView(box)
+        
+        // FIX: Null Safety Check యాడ్ చేశాను
+        if (panel == null) {
+            onClosedCallback?.invoke()
+            return
         }
-        onClosedCallback?.invoke()
-    }
-
-    fun closeSubMenuAndNavigate(moveDown: Boolean) {
-        val closedKey = openSubMenu
-        val panel = activePanelRef ?: return
+        
         val parentCard = panel.findViewWithTag<View>("acc_$closedKey")
         val box = activeSubBoxRef
 
-        openSubMenu = ""; activeSubBoxRef = null; lastFocusedTag = "acc_$closedKey"
+        openSubMenu = ""; activeSubBoxRef = null
 
-        if (parentCard != null) {
-            if (!moveDown) {
-                parentCard.requestFocus(); lastFocusedTag = parentCard.tag as? String ?: ""
-            } else {
-                val next = FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN)
-                val target = next ?: parentCard
-                target.requestFocus(); lastFocusedTag = target.tag as? String ?: ""
-            }
-        }
-        
-        // FIX: ఇక్కడ కూడా LayoutTransition ని డిసేబుల్ చేయకుండా డైరెక్ట్ గా రిమూవ్ చేస్తున్నాం
+        // ఫోకస్ సేఫ్ గా పేరెంట్ మీదకి షిఫ్ట్ చేయడం
+        parentCard?.requestFocus()
+
         if (box != null && box.parent == panel) {
-            panel.removeView(box)
+            val trans = panel.layoutTransition
+            panel.layoutTransition = null // Disable auto-snap
+
+            // Butter-smooth fold back animation
+            box.animate()
+                .alpha(0f).translationY(-20f).scaleY(0.9f)
+                .setDuration(180L).setInterpolator(LauncherUtils.SILKY_EASE)
+                .withEndAction {
+                    panel.removeView(box)
+                    panel.layoutTransition = trans
+                    onClosedCallback?.invoke()
+                }.start()
+        } else {
+            onClosedCallback?.invoke()
+        }
+    }
+
+    fun closeSubMenuAndNavigate(moveDown: Boolean) {
+        if (openSubMenu.isEmpty()) return
+        val closedKey = openSubMenu
+        
+        // FIX: Null Safety Check యాడ్ చేశాను
+        val panel = activePanelRef ?: return
+        
+        val parentCard = panel.findViewWithTag<View>("acc_$closedKey")
+        val box = activeSubBoxRef
+
+        openSubMenu = ""; activeSubBoxRef = null
+
+        val targetFocus = if (moveDown) {
+            FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN) ?: parentCard
+        } else {
+            parentCard
+        }
+        targetFocus?.requestFocus()
+
+        if (box != null && box.parent == panel) {
+            val trans = panel.layoutTransition
+            panel.layoutTransition = null // Disable auto-snap
+            
+            box.animate()
+                .alpha(0f).translationY(-20f).scaleY(0.9f)
+                .setDuration(180L).setInterpolator(LauncherUtils.SILKY_EASE)
+                .withEndAction {
+                    panel.removeView(box)
+                    panel.layoutTransition = trans
+                }.start()
         }
     }
 
