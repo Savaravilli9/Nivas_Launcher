@@ -421,11 +421,21 @@ class SideControlDrawer(
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
 
-    private fun launch(act: String) = try {
-        context.startActivity(Intent(act))
-    } catch (_: Exception) {
-        Toast.makeText(context, "Unavailable", Toast.LENGTH_SHORT).show()
+        private fun launch(act: String) {
+        try {
+            // ముందుగా మీరు ఇచ్చిన సెట్టింగ్ ఓపెన్ చేయడానికి ట్రై చేస్తుంది
+            context.startActivity(Intent(act))
+        } catch (_: Exception) {
+            try {
+                // టీవీ దాన్ని బ్లాక్ చేసి ఉంటే.. మెయిన్ టీవీ సెట్టింగ్స్ ఓపెన్ చేస్తుంది (Fallback)
+                context.startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (_: Exception) {
+                // అది కూడా లేకపోతే సింపుల్ గా ఈ మెసేజ్ ఇస్తుంది
+                Toast.makeText(context, "Settings unavailable on this TV", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
+
 
     private fun xBtnBg(foc: Boolean) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
