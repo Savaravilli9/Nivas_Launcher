@@ -51,7 +51,7 @@ class SideControlDrawer(
         if (isOpen && mode == currentMode) close() else open(mode)
     }
 
-    fun open(mode: String) {
+        fun open(mode: String) {
         val wasOpen = isOpen
         currentMode = mode
         isOpen = true
@@ -64,31 +64,25 @@ class SideControlDrawer(
         drawerLayout.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.argb(238, 22, 30, 68), Color.argb(244, 15, 22, 52), Color.argb(248, 10, 15, 38))
-        ).apply {
-            cornerRadius = LauncherUtils.dpF(context, 24f)
-            setStroke(dp(1.5f), Color.argb(145, 255, 255, 255))
-        }
+        ).apply { cornerRadius = LauncherUtils.dpF(context, 24f); setStroke(dp(1.5f), Color.argb(145, 255, 255, 255)) }
         drawerLayout.elevation = dp(22f).toFloat()
-        scrim.setBackgroundColor(Color.argb(55, 4, 8, 20))
-        scrim.visibility = View.VISIBLE
-        drawerLayout.visibility = View.VISIBLE
+        scrim.setBackgroundColor(Color.argb(55, 4, 8, 20)); scrim.visibility = View.VISIBLE; drawerLayout.visibility = View.VISIBLE
 
         setupDrawerSkeleton()
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() 
+            onLiveRefresh() // This triggers FluidAppGrid animation simultaneously!
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            scrim.alpha = 0f
-            scrim.animate().alpha(1f).setDuration(220L).start()
+            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(320L).start()
 
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(220L)
-                .setInterpolator(LauncherUtils.SILKY_EASE)
+                .setDuration(320L) // Matches exactly with FluidAppGrid duration
+                .setInterpolator(LauncherUtils.FLUID_SPRING)
                 .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
         }
@@ -96,24 +90,22 @@ class SideControlDrawer(
 
     fun close() {
         if (!isOpen) return
-        isOpen = false
-        currentMode = ""
+        isOpen = false; currentMode = ""
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        scrim.animate().alpha(0f).setDuration(180L).start()
+        scrim.animate().alpha(0f).setDuration(200L).start()
+        
+        onLiveRefresh() // Grids snap back simultaneously!
         
         drawerLayout.animate()
             .translationX(out.toFloat()).alpha(0f)
-            .setDuration(200L)
-            .setInterpolator(LauncherUtils.SILKY_EASE)
+            .setDuration(320L)
+            .setInterpolator(LauncherUtils.FLUID_SPRING)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                scrim.visibility = View.GONE
-                drawerLayout.visibility = View.GONE
-                onLiveRefresh() 
-            }
-            .start()
+                scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
+            }.start()
     }
 
     private fun setupDrawerSkeleton() {
