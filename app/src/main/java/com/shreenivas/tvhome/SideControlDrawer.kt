@@ -154,7 +154,8 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-        private fun populateActivePanel(isInitialOpen: Boolean) {
+
+    private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 
@@ -320,7 +321,6 @@ class SideControlDrawer(
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
 
-    // FIX: Android TV Specific Fallback Intents
     private fun launch(act: String) {
         try { context.startActivity(Intent(act)) } catch (_: Exception) {
             val fallback = when (act) {
