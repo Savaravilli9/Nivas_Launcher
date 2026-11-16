@@ -25,7 +25,7 @@ class SideControlDrawer(
     private val context: Context,
     private val drawerLayout: LinearLayout,
     private val scrim: View,
-    private val mainPage: View, // Added mainPage reference
+    private val mainPage: View,
     private val lp: LauncherPreferences,
     private val onLiveRefresh: () -> Unit,
     private val onWallpaperRefresh: () -> Unit,
@@ -77,7 +77,7 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() // Instantly recalculates grid columns smoothly
+            onLiveRefresh() 
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             scrim.alpha = 0f
             scrim.animate().alpha(1f).setDuration(220L).start()
@@ -111,18 +111,17 @@ class SideControlDrawer(
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE
                 drawerLayout.visibility = View.GONE
-                onLiveRefresh() // Restores grid columns seamlessly
+                onLiveRefresh() 
             }
             .start()
     }
-    
+
     private fun setupDrawerSkeleton() {
         drawerLayout.removeAllViews()
         drawerLayout.setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
 
         val topRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4f), dp(2f), dp(2f), dp(10f))
         }
 
@@ -139,13 +138,9 @@ class SideControlDrawer(
 
         val closeX = TextView(context).apply {
             text = "✕"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE); gravity = Gravity.CENTER
-            isFocusable = true; isClickable = true
+            setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true; isClickable = true
             background = xBtnBg(false)
-            setOnFocusChangeListener { v, f ->
-                LauncherUtils.applyFocusSpring(v, f, 1.12f, 4f)
-                v.background = xBtnBg(f)
-            }
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.12f, 4f); v.background = xBtnBg(f) }
             setOnClickListener { close() }
         }
         topRow.addView(closeX, LinearLayout.LayoutParams(dp(28f), dp(28f)))
@@ -154,15 +149,12 @@ class SideControlDrawer(
         val divider = View(context).apply { setBackgroundColor(Color.argb(60, 255, 255, 255)) }
         drawerLayout.addView(divider, LinearLayout.LayoutParams(-1, dp(1f)).apply { bottomMargin = dp(8f) })
 
-        activeScroll = ScrollView(context).apply {
-            isVerticalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-        }
+        activeScroll = ScrollView(context).apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER }
         activePanel = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-    private fun populateActivePanel(isInitialOpen: Boolean) {
+        private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 
@@ -170,10 +162,7 @@ class SideControlDrawer(
             MODE_CUSTOMIZE -> CustomizeMenuBuilder.build(
                 context, panel, lp, onLiveRefresh, { populateActivePanel(false) },
                 ::showUserNameDialog,
-                {
-                    if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null) open(MODE_WALLPAPER_EDIT)
-                    else onPickWallpaper()
-                },
+                { if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null) open(MODE_WALLPAPER_EDIT) else onPickWallpaper() },
                 ::close
             )
             MODE_WIFI -> WifiPanelBuilder.build(context, panel, lp) { populateActivePanel(false) }
@@ -182,46 +171,28 @@ class SideControlDrawer(
             MODE_WALLPAPER_EDIT -> WallpaperEditorPanel.build(context, panel, lp, onWallpaperRefresh, onPickWallpaper) { open(MODE_CUSTOMIZE) }
             else -> buildControlCenter(panel)
         }
-
-        if (isInitialOpen) {
-            panel.post { panel.requestFocus() }
-        }
+        if (isInitialOpen) panel.post { panel.requestFocus() }
     }
 
     private fun buildRealAlertsPanel(panel: LinearLayout) {
         val hasPerm = TvNotificationService.isPermissionGranted(context)
         if (!hasPerm) {
             addLabel(panel, "PERMISSION REQUIRED")
-            addActionButton(
-                panel, "🔓", "Enable Notification Access",
-                "Allow Shree TV Home to show real system & app alerts"
-            ) {
-                try {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                } catch (_: Exception) {
-                    launch(Settings.ACTION_SETTINGS)
-                }
+            addActionButton(panel, "🔓", "Enable Notification Access", "Allow Shree TV Home to show real system & app alerts") {
+                launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             }
             return
         }
 
         val alerts = TvNotificationService.getAlerts()
-        val topBar = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        val topBar = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         topBar.addView(text("LIVE SYSTEM ALERTS (${alerts.size})", 9f, lp.accentColor, true))
         topBar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         if (alerts.isNotEmpty()) {
             val clearAll = text("Clear All", 9f, Color.WHITE, true).apply {
-                setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
-                isFocusable = true
-                background = glassCardBg(false)
+                setPadding(dp(8f), dp(3f), dp(8f), dp(3f)); isFocusable = true; background = glassCardBg(false)
                 setOnFocusChangeListener { v, f -> v.background = glassCardBg(f) }
-                setOnClickListener {
-                    TvNotificationService.clearAllAlerts()
-                    populateActivePanel(false)
-                }
+                setOnClickListener { TvNotificationService.clearAllAlerts(); populateActivePanel(false) }
             }
             topBar.addView(clearAll)
         }
@@ -229,40 +200,23 @@ class SideControlDrawer(
 
         if (alerts.isEmpty()) {
             val emptyTv = text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
-                gravity = Gravity.CENTER
-                setPadding(0, dp(28f), 0, dp(28f))
+                gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
             }
-            panel.addView(emptyTv, LinearLayout.LayoutParams(-1, -2))
-            return
+            panel.addView(emptyTv, LinearLayout.LayoutParams(-1, -2)); return
         }
 
         for (item in alerts) {
             val card = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(11f), dp(9f), dp(11f), dp(9f))
-                isFocusable = true
-                background = glassCardBg(false)
-                setOnFocusChangeListener { v, f ->
-                    LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
-                    v.background = glassCardBg(f)
-                }
-                setOnClickListener {
-                    TvNotificationService.dismissAlert(item.key)
-                    populateActivePanel(false)
-                }
+                orientation = LinearLayout.VERTICAL; setPadding(dp(11f), dp(9f), dp(11f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+                setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f); v.background = glassCardBg(f) }
+                setOnClickListener { TvNotificationService.dismissAlert(item.key); populateActivePanel(false) }
             }
             val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             row1.addView(text("🔔  ${item.appName}", 9f, lp.accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
             row1.addView(text("${item.timeStr}  ✕", 8.5f, Color.argb(180, 255, 255, 255), true))
             card.addView(row1)
-
-            card.addView(text(item.title, 10.5f, Color.WHITE, true).apply {
-                isSingleLine = true; ellipsize = TextUtils.TruncateAt.END
-                setPadding(0, dp(3f), 0, dp(1f))
-            })
-            card.addView(text(item.text, 9f, Color.argb(195, 215, 232, 250), false).apply {
-                maxLines = 2; ellipsize = TextUtils.TruncateAt.END
-            })
+            card.addView(text(item.title, 10.5f, Color.WHITE, true).apply { isSingleLine = true; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(3f), 0, dp(1f)) })
+            card.addView(text(item.text, 9f, Color.argb(195, 215, 232, 250), false).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
             panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
         }
     }
@@ -274,63 +228,42 @@ class SideControlDrawer(
             close()
         }
         addActionButton(panel, "🔄", "Refresh Launcher", "Reload all installed TV apps") {
-            AppGridManager.clearCache()
-            onLiveRefresh()
-            close()
+            AppGridManager.clearCache(); onLiveRefresh(); close()
         }
-        addActionButton(panel, "⚙", "Android TV Settings", "Device preferences & reboot") {
-            launch(Settings.ACTION_SETTINGS)
-        }
+        addActionButton(panel, "⚙", "Android TV Settings", "Device preferences & reboot") { launch(Settings.ACTION_SETTINGS) }
     }
 
     private fun buildControlCenter(panel: LinearLayout) {
-        val sysRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        sysRow.addView(text("MEDIA & DISPLAY", 9.5f, lp.accentColor, true))
-        sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+        val sysRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        sysRow.addView(text("MEDIA & DISPLAY", 9.5f, lp.accentColor, true)); sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         val sysBtn = text("⚙ System", 10f, Color.WHITE, true).apply {
-            setPadding(dp(10f), dp(4f), dp(10f), dp(4f))
-            isFocusable = true
-            background = glassCardBg(false)
+            setPadding(dp(10f), dp(4f), dp(10f), dp(4f)); isFocusable = true; background = glassCardBg(false)
             setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 3f); v.background = glassCardBg(f) }
             setOnClickListener { launch(Settings.ACTION_SETTINGS) }
         }
-        sysRow.addView(sysBtn)
-        panel.addView(sysRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
+        sysRow.addView(sysBtn); panel.addView(sysRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
 
         val gridRow1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        gridRow1.addView(makeGridTile("📺", "TV Input", "HDMI / Source") { launch(Settings.ACTION_INPUT_METHOD_SETTINGS) },
-            LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
-        gridRow1.addView(makeGridTile("🎨", "Picture", "Display Mode") { launch(Settings.ACTION_DISPLAY_SETTINGS) },
-            LinearLayout.LayoutParams(0, dp(56f), 1f))
+        gridRow1.addView(makeGridTile("📺", "TV Input", "HDMI / Source") { launch(Settings.ACTION_INPUT_METHOD_SETTINGS) }, LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
+        gridRow1.addView(makeGridTile("🎨", "Picture", "Display Mode") { launch(Settings.ACTION_DISPLAY_SETTINGS) }, LinearLayout.LayoutParams(0, dp(56f), 1f))
         panel.addView(gridRow1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
 
         val gridRow2 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        gridRow2.addView(makeGridTile("🔊", "Audio Out", "Sound Settings") { launch(Settings.ACTION_SOUND_SETTINGS) },
-            LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
-        gridRow2.addView(makeGridTile("🖼", "Screen Art", "Wallpaper") { open(MODE_WALLPAPER_EDIT) },
-            LinearLayout.LayoutParams(0, dp(56f), 1f))
+        gridRow2.addView(makeGridTile("🔊", "Audio Out", "Sound Settings") { launch(Settings.ACTION_SOUND_SETTINGS) }, LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
+        gridRow2.addView(makeGridTile("🖼", "Screen Art", "Wallpaper") { open(MODE_WALLPAPER_EDIT) }, LinearLayout.LayoutParams(0, dp(56f), 1f))
         panel.addView(gridRow2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
 
         addLabel(panel, "DISPLAY & SOUND LEVELS")
         addSliderCard(panel, "☀  Screen Brightness", brightnessPct) { p ->
             brightnessPct = p
-            (context as? Activity)?.window?.let { win ->
-                val attr = win.attributes
-                attr.screenBrightness = (p.coerceIn(10, 100) / 100f)
-                win.attributes = attr
-            }
+            (context as? Activity)?.window?.let { win -> val attr = win.attributes; attr.screenBrightness = (p.coerceIn(10, 100) / 100f); win.attributes = attr }
         }
 
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val maxVol = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
         val curVol = am?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 10
         val volPct = ((curVol * 100f) / maxOf(1, maxVol)).toInt()
-        addSliderCard(panel, "🔊  TV Audio Volume", volPct) { p ->
-            am?.setStreamVolume(AudioManager.STREAM_MUSIC, ((p / 100f) * maxVol).toInt(), 0)
-        }
+        addSliderCard(panel, "🔊  TV Audio Volume", volPct) { p -> am?.setStreamVolume(AudioManager.STREAM_MUSIC, ((p / 100f) * maxVol).toInt(), 0) }
 
         addLabel(panel, "NETWORK & FEATURES")
         addActionButton(panel, "📶", "Wi-Fi & Network", "Manage connection") { open(MODE_WIFI) }
@@ -339,25 +272,18 @@ class SideControlDrawer(
     }
 
     private fun makeGridTile(icon: String, title: String, sub: String, onClick: () -> Unit) = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(10f), dp(6f), dp(10f), dp(6f)); isFocusable = true; background = glassCardBg(false)
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10f), dp(6f), dp(10f), dp(6f)); isFocusable = true; background = glassCardBg(false)
         setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.03f, 4f); v.background = glassCardBg(f) }
         setOnClickListener { onClick() }
-        addView(text("$icon  $title", 10f, Color.WHITE, true))
-        addView(text(sub, 8.5f, lp.accentColor, false).apply { setPadding(0, dp(2f), 0, 0) })
+        addView(text("$icon  $title", 10f, Color.WHITE, true)); addView(text(sub, 8.5f, lp.accentColor, false).apply { setPadding(0, dp(2f), 0, 0) })
     }
 
     private fun addSliderCard(panel: LinearLayout, label: String, initialPct: Int, onChange: (Int) -> Unit) {
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); background = glassCardBg(false)
-        }
+        val card = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); background = glassCardBg(false) }
         val top = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         val pct = text("$initialPct%", 10.5f, lp.accentColor, true)
-        top.addView(text(label, 10.5f, Color.WHITE, true))
-        top.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-        top.addView(pct)
+        top.addView(text(label, 10.5f, Color.WHITE, true)); top.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); top.addView(pct)
         card.addView(top)
-
         val sb = SeekBar(context).apply {
             max = 100; progress = initialPct; isFocusable = true
             setOnFocusChangeListener { _, f -> card.background = glassCardBg(f) }
@@ -367,102 +293,51 @@ class SideControlDrawer(
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
-        card.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5f) })
-        panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
+        card.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5f) }); panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
     }
 
     private fun showUserNameDialog() {
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(12f), dp(20f), dp(8f)) }
-        val nameInput = EditText(context).apply {
-            isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-        }
-        val phraseInput = EditText(context).apply {
-            isSingleLine = true
-            hint = "Custom Greeting (Empty = Auto Time)"
-            setText(lp.greetingPhrase)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        }
-        box.addView(nameInput)
-        box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
-
-        AlertDialog.Builder(context)
-            .setTitle("Profile & Greeting")
-            .setView(box)
-            .setPositiveButton("Save") { _, _ ->
-                lp.userName = nameInput.text.toString().trim()
-                lp.greetingPhrase = phraseInput.text.toString().trim()
-                onLiveRefresh()
-                populateActivePanel(false)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val nameInput = EditText(context).apply { isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
+        val phraseInput = EditText(context).apply { isSingleLine = true; hint = "Custom Greeting"; setText(lp.greetingPhrase); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES }
+        box.addView(nameInput); box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
+        AlertDialog.Builder(context).setTitle("Profile & Greeting").setView(box).setPositiveButton("Save") { _, _ ->
+            lp.userName = nameInput.text.toString().trim(); lp.greetingPhrase = phraseInput.text.toString().trim()
+            onLiveRefresh(); populateActivePanel(false)
+        }.setNegativeButton("Cancel", null).show()
     }
 
     private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
         val card = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12f), dp(9f), dp(12f), dp(9f))
-            isFocusable = true
-            background = glassCardBg(false)
-            setOnFocusChangeListener { v, f ->
-                LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
-                v.background = glassCardBg(f)
-            }
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f); v.background = glassCardBg(f) }
             setOnClickListener { act() }
         }
         card.addView(text(icon, 14f, lp.accentColor, true).apply { setPadding(0, 0, dp(10f), 0) })
         val mid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        mid.addView(text(title, 10.5f, Color.WHITE, true))
-        mid.addView(text(sub, 8.5f, Color.argb(185, 210, 230, 245), false))
-        card.addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
-        card.addView(text("›", 15f, Color.argb(180, 255, 255, 255), true))
+        mid.addView(text(title, 10.5f, Color.WHITE, true)); mid.addView(text(sub, 8.5f, Color.argb(185, 210, 230, 245), false))
+        card.addView(mid, LinearLayout.LayoutParams(0, -2, 1f)); card.addView(text("›", 15f, Color.argb(180, 255, 255, 255), true))
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
 
-        private fun launch(act: String) {
-        try {
-            // ముందుగా మీరు ఇచ్చిన సెట్టింగ్ ఓపెన్ చేయడానికి ట్రై చేస్తుంది
-            context.startActivity(Intent(act))
-        } catch (_: Exception) {
-            try {
-                // టీవీ దాన్ని బ్లాక్ చేసి ఉంటే.. మెయిన్ టీవీ సెట్టింగ్స్ ఓపెన్ చేస్తుంది (Fallback)
-                context.startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (_: Exception) {
-                // అది కూడా లేకపోతే సింపుల్ గా ఈ మెసేజ్ ఇస్తుంది
-                Toast.makeText(context, "Settings unavailable on this TV", Toast.LENGTH_SHORT).show()
+    // FIX: Android TV Specific Fallback Intents
+    private fun launch(act: String) {
+        try { context.startActivity(Intent(act)) } catch (_: Exception) {
+            val fallback = when (act) {
+                Settings.ACTION_DISPLAY_SETTINGS -> Intent("com.android.tv.settings.DISPLAY")
+                Settings.ACTION_SOUND_SETTINGS -> Intent("com.android.tv.settings.SOUND")
+                Settings.ACTION_APPLICATION_SETTINGS -> Intent("com.android.tv.settings.DEVICE_INFO")
+                else -> Intent(Settings.ACTION_SETTINGS)
+            }
+            try { context.startActivity(fallback) } catch (_: Exception) {
+                try { context.startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) { Toast.makeText(context, "Settings unavailable on this TV", Toast.LENGTH_SHORT).show() }
             }
         }
     }
 
-
-    private fun xBtnBg(foc: Boolean) = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255))
-        setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255))
-    }
-
-    private fun glassCardBg(foc: Boolean) = GradientDrawable(
-        GradientDrawable.Orientation.TOP_BOTTOM,
-        if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255))
-        else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))
-    ).apply {
-        cornerRadius = LauncherUtils.dpF(context, 14f)
-        setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255))
-    }
-
-    private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply {
-        text = v
-        textSize = sz
-        setTextColor(col)
-        if (bld) typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private fun addLabel(panel: LinearLayout, lbl: String) = panel.addView(
-        text(lbl.uppercase(Locale.ROOT), 9f, lp.accentColor, true).apply { letterSpacing = 0.09f },
-        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f); bottomMargin = dp(5f) }
-    )
-
+    private fun xBtnBg(foc: Boolean) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255)); setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255)) }
+    private fun glassCardBg(foc: Boolean) = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255)) else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))).apply { cornerRadius = LauncherUtils.dpF(context, 14f); setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255)) }
+    private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply { text = v; textSize = sz; setTextColor(col); if (bld) typeface = Typeface.DEFAULT_BOLD }
+    private fun addLabel(panel: LinearLayout, lbl: String) = panel.addView(text(lbl.uppercase(Locale.ROOT), 9f, lp.accentColor, true).apply { letterSpacing = 0.09f }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f); bottomMargin = dp(5f) })
     private fun dp(v: Float) = LauncherUtils.dpF(context, v).toInt()
 }
