@@ -37,7 +37,6 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
             val targetY = row * (tileH + gap).toFloat()
 
             if (animate) {
-                // ఎక్స్, వై కదలికలకు GPU ఆక్సెలరేషన్ (Zero Lag)
                 child.animate()
                     .x(targetX).y(targetY)
                     .setDuration(450L)
@@ -55,7 +54,6 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
         
         if (!animate && sizeChanged) requestLayout()
 
-        // FIX: 151 యానిమేటర్స్‌కి బదులు ఒకే ఒక్క మాస్టర్ యానిమేటర్ వాడటం వల్ల స్టక్ అయ్యే సమస్య తీరింది!
         if (animate && sizeChanged) {
             ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 450L
@@ -69,7 +67,7 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
                         c.layoutParams.width = curW
                         c.layoutParams.height = curH
                     }
-                    requestLayout() // సెకనుకు ఒక్కసారే లేఅవుట్ పాస్, 150 సార్లు కాదు!
+                    requestLayout() 
                 }
                 start()
             }
@@ -82,5 +80,48 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
         val rows = ceil(childCount.toDouble() / columns).toInt()
         val totalH = rows * tileH + maxOf(0, rows - 1) * gap
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), totalH)
+    }
+
+    // ==========================================
+    // THE FIX: D-PAD SMART FOCUS ROUTER
+    // ==========================================
+    override fun focusSearch(focused: View, direction: Int): View? {
+        val index = indexOfChild(focused)
+        if (index < 0) return super.focusSearch(focused, direction)
+
+        val row = index / columns
+        val col = index % columns
+        val totalRows = ceil(childCount.toDouble() / columns).toInt()
+
+        return when (direction) {
+            View.FOCUS_RIGHT -> {
+                // కుడివైపుకి నొక్కినప్పుడు పక్కన యాప్ ఉంటే దానికి వెళ్తుంది
+                if (col < columns - 1 && index + 1 < childCount) getChildAt(index + 1)
+                else super.focusSearch(focused, direction) // చివర్లో ఉంటే సిస్టమ్‌కి వదిలేస్తుంది (ఉదా: సైడ్ ప్యానెల్‌కి వెళ్లడానికి)
+            }
+            View.FOCUS_LEFT -> {
+                // ఎడమవైపుకి నొక్కినప్పుడు వెనక యాప్ కి వెళ్తుంది
+                if (col > 0) getChildAt(index - 1)
+                else super.focusSearch(focused, direction)
+            }
+            View.FOCUS_DOWN -> {
+                // కిందకి నొక్కినప్పుడు కచ్చితంగా కింది యాప్ కే వెళ్తుంది.
+                if (row < totalRows - 1) {
+                    val nextIndex = minOf(index + columns, childCount - 1)
+                    getChildAt(nextIndex)
+                } else {
+                    focused // చిట్టచివరి వరుసలో కిందకి నొక్కితే ఎక్కడికీ జంప్ అవ్వకుండా అక్కడే లాక్ అవుతుంది
+                }
+            }
+            View.FOCUS_UP -> {
+                // పైకి నొక్కినప్పుడు పై యాప్ కి వెళ్తుంది
+                if (row > 0) {
+                    getChildAt(index - columns)
+                } else {
+                    super.focusSearch(focused, direction) // మొదటి వరుసలో పైకి నొక్కితే ఫేవరెట్స్ లేదా టాప్ బార్ కి వెళ్తుంది
+                }
+            }
+            else -> super.focusSearch(focused, direction)
+        }
     }
 }
