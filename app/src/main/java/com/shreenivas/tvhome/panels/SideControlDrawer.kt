@@ -82,7 +82,8 @@ class SideControlDrawer(
         setupDrawerSkeleton()
         populateActivePanel(true)
 
-        if (!wasOpen) {
+                if (!wasOpen) {
+            MotionEngine.resetTransform(drawerLayout)
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(360L).start()
             MotionEngine.animatePanelEnter(drawerLayout, stageWidget, dynamicDrawerW, lp.motionStyle) {
@@ -152,7 +153,7 @@ class SideControlDrawer(
             MODE_CUSTOMIZE -> CustomizeMenuBuilder.build(
                 context, panel, lp, onLiveRefresh, { populateActivePanel(false) },
                 ::showUserNameDialog,
-                { if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null) open(MODE_WALLPAPER_EDIT) else onPickWallpaper() },
+                { open(MODE_WALLPAPER_EDIT) },
                 onOpenHiddenRibbon,
                 ::close
             )
