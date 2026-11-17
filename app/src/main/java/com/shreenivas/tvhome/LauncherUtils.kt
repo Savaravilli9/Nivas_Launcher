@@ -56,14 +56,8 @@ object LauncherUtils {
     }
 
     fun applyFocusSpring(view: View, focused: Boolean, scale: Float = 1.06f, elevationDp: Float = 8f) {
-        view.animate().cancel()
-        view.animate()
-            .scaleX(if (focused) scale else 1f)
-            .scaleY(if (focused) scale else 1f)
-            .translationZ(if (focused) dpF(view.context, elevationDp) else 0f)
-            .setDuration(if (focused) 210L else 140L)
-            .setInterpolator(if (focused) FLUID_SPRING else SILKY_EASE)
-            .start()
+        val style = LauncherPreferences(view.context).motionStyle
+        MotionEngine.animateFocus(view, focused, style, scale, elevationDp)
     }
 
     fun withAlpha(color: Int, alpha: Int): Int {
