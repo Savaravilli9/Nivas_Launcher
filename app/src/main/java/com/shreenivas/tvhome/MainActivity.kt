@@ -9,6 +9,7 @@ import com.shreenivas.tvhome.services.NightNudgeReceiver
 import com.shreenivas.tvhome.ui.LauncherBackground
 import com.shreenivas.tvhome.ui.TopNavBar
 import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.ui.AmbientStageWidget
 
 import android.Manifest
 import android.animation.LayoutTransition
@@ -58,9 +59,10 @@ class MainActivity : Activity() {
     private lateinit var drawerScrim: View
     private lateinit var lp: LauncherPreferences
     private lateinit var sideDrawer: SideControlDrawer
-
+    private lateinit var ambientStage: AmbientStageWidget
     private val pkgReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
+    
+    override fun onReceive(context: Context?, intent: Intent?) {
             AppGridManager.clearCache()
             refreshApps(!sideDrawer.isOpen)
         }
