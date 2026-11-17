@@ -29,7 +29,8 @@ class SideControlDrawer(
     private val lp: LauncherPreferences,
     private val onLiveRefresh: () -> Unit,
     private val onWallpaperRefresh: () -> Unit,
-    private val onPickWallpaper: () -> Unit
+    private val onPickWallpaper: () -> Unit,
+    private val onOpenHiddenRibbon: () -> Unit
 ) {
     companion object {
         const val MODE_CUSTOMIZE = "customize"
