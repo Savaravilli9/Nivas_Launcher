@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 
 object AppActionDialog {
 
@@ -23,9 +24,10 @@ object AppActionDialog {
         canMoveLeft: Boolean,
         canMoveRight: Boolean,
         accent: Int,
-        onToggleFav: () -> Unit,
-        onMoveFav: (Int) -> Unit,
-        onHideApp: () -> Unit
+        isHiddenMode: Boolean = false,
+        onToggleFav: () -> Unit = {},
+        onMoveFav: (Int) -> Unit = {},
+        onHideOrUnhideApp: () -> Unit = {}
     ) {
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -52,33 +54,44 @@ object AppActionDialog {
         val dialog = AlertDialog.Builder(ctx).setView(box).create()
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
-        if (isFav && (canMoveLeft || canMoveRight)) {
-            val moveRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-            if (canMoveLeft) {
-                val leftBtn = makeOptionBtn(ctx, "⬅  Move Left", accent) { dialog.dismiss(); onMoveFav(-1) }
-                moveRow.addView(leftBtn, LinearLayout.LayoutParams(0, LauncherUtils.dp(ctx, 42), 1f).apply {
-                    if (canMoveRight) rightMargin = LauncherUtils.dp(ctx, 8)
-                })
+        if (!isHiddenMode) {
+            if (isFav && (canMoveLeft || canMoveRight)) {
+                val moveRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+                if (canMoveLeft) {
+                    val leftBtn = makeOptionBtn(ctx, "⬅  Move Left", accent) { dialog.dismiss(); onMoveFav(-1) }
+                    moveRow.addView(leftBtn, LinearLayout.LayoutParams(0, LauncherUtils.dp(ctx, 42), 1f).apply {
+                        if (canMoveRight) rightMargin = LauncherUtils.dp(ctx, 8)
+                    })
+                }
+                if (canMoveRight) {
+                    val rightBtn = makeOptionBtn(ctx, "Move Right  ➡", accent) { dialog.dismiss(); onMoveFav(1) }
+                    moveRow.addView(rightBtn, LinearLayout.LayoutParams(0, LauncherUtils.dp(ctx, 42), 1f))
+                }
+                box.addView(moveRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = LauncherUtils.dp(ctx, 9) })
             }
-            if (canMoveRight) {
-                val rightBtn = makeOptionBtn(ctx, "Move Right  ➡", accent) { dialog.dismiss(); onMoveFav(1) }
-                moveRow.addView(rightBtn, LinearLayout.LayoutParams(0, LauncherUtils.dp(ctx, 42), 1f))
+
+            addOption(ctx, box, if (isFav) "★  Remove from Favorites" else "★  Add to Favorites", accent) {
+                dialog.dismiss(); onToggleFav()
             }
-            box.addView(moveRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = LauncherUtils.dp(ctx, 9) })
-        }
 
-        addOption(ctx, box, if (isFav) "★  Remove from Favorites" else "★  Add to Favorites", accent) {
-            dialog.dismiss(); onToggleFav()
-        }
-
-        addOption(ctx, box, "👁  Hide from Home", Color.rgb(175, 195, 235)) {
-            dialog.dismiss(); onHideApp()
+            addOption(ctx, box, "👁  Hide from Home", Color.rgb(175, 195, 235)) {
+                dialog.dismiss(); onHideOrUnhideApp()
+            }
+        } else {
+            addOption(ctx, box, "👁  Unhide to Home", Color.rgb(46, 232, 138)) {
+                dialog.dismiss(); onHideOrUnhideApp()
+            }
         }
 
         addOption(ctx, box, "ℹ  App Info & Storage", accent) {
             dialog.dismiss()
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null))
-            if (intent.resolveActivity(ctx.packageManager) != null) ctx.startActivity(intent)
+            openAppDetails(ctx, pkg)
+        }
+
+        addOption(ctx, box, "🚫  Disable App", Color.rgb(255, 185, 85)) {
+            dialog.dismiss()
+            Toast.makeText(ctx, "Select 'Disable' on the next screen", Toast.LENGTH_SHORT).show()
+            openAppDetails(ctx, pkg)
         }
 
         addOption(ctx, box, "🗑  Uninstall App", Color.rgb(255, 95, 105)) {
@@ -90,6 +103,15 @@ object AppActionDialog {
         box.scaleX = 0.90f; box.scaleY = 0.90f; box.alpha = 0f
         dialog.show()
         box.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220L).setInterpolator(LauncherUtils.FLUID_SPRING).start()
+    }
+
+    private fun openAppDetails(ctx: Context, pkg: String) {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null))
+        if (intent.resolveActivity(ctx.packageManager) != null) {
+            ctx.startActivity(intent)
+        } else {
+            Toast.makeText(ctx, "App details unavailable", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun makeOptionBtn(ctx: Context, label: String, accent: Int, action: () -> Unit) = Button(ctx).apply {
