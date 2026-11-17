@@ -137,9 +137,9 @@ object CustomizeMenuBuilder {
         addAccordionPair(ctx, panel, lp, narrowMode, "tile_size", "📐", "Tile Size", cap(lp.tileSize), Color.rgb(64, 156, 255), "panel_width", "◫", "Panel Width", "$widthPct%", Color.rgb(156, 92, 255), onLiveRefresh)
         addHeader(ctx, panel, "TILE & BADGE STYLING")
         addAccordionPair(ctx, panel, lp, narrowMode, "tile_shape", "▢", "Tile Shape", cap(lp.tileShape), Color.rgb(46, 204, 148), "icon_badge", "♡", "Icon Badge", cap(lp.badgeMode), Color.rgb(245, 86, 148), onLiveRefresh)
-        addHeader(ctx, panel, "GRID & ACCENT")
-        addAccordionPair(ctx, panel, lp, narrowMode, "cols", "⊞", "Apps Per Row", "${lp.columns} Cols", Color.rgb(255, 158, 68), "accent", "✦", "Accent Aura", cap(lp.accentName), Color.rgb(175, 105, 255), onLiveRefresh)
-
+        addHeader(ctx, panel, "MOTION & ACCENT")
+        addAccordionPair(ctx, panel, lp, narrowMode, "motion", "✨", "Motion Style", cap(lp.motionStyle), Color.rgb(255, 158, 68), "accent", "✦", "Accent Aura", cap(lp.accentName), Color.rgb(175, 105, 255), onLiveRefresh)
+        
         addHeader(ctx, panel, "LAUNCHER THEMES (6 MODES)")
         val curTheme = lp.tileColor
         for (i in TileThemePalette.NAMES.indices step 2) {
