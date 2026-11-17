@@ -50,6 +50,7 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         invalidate()
     }
 
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         val wf = w.toFloat()
