@@ -1,9 +1,5 @@
 package com.shreenivas.tvhome.homescreen
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
