@@ -55,27 +55,30 @@ object CustomizeMenuBuilder {
             onClosedCallback?.invoke()
         }
     }
-
+    
     fun closeSubMenuAndNavigate(moveDown: Boolean) {
         if (openSubMenu.isEmpty()) return
         val closedKey = openSubMenu
         val panel = activePanelRef ?: return
-        
+
         val parentCard = panel.findViewWithTag<View>("acc_$closedKey")
         val box = activeSubBoxRef
 
         openSubMenu = ""; activeSubBoxRef = null
 
-        val targetFocus = if (moveDown) FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN) ?: parentCard else parentCard
-        targetFocus?.requestFocus()
-
         if (box != null && box.parent == panel) {
             val trans = panel.layoutTransition
             panel.layoutTransition = null
-            box.animate().alpha(0f).translationY(-20f).scaleY(0.9f)
-                .setDuration(160L).setInterpolator(LauncherUtils.SILKY_EASE)
-                .withEndAction { panel.removeView(box); panel.layoutTransition = trans }.start()
+            panel.removeView(box)
+            panel.layoutTransition = trans
         }
+
+        val targetFocus = if (moveDown && parentCard != null) {
+            FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN) ?: parentCard
+        } else {
+            parentCard
+        }
+        targetFocus?.requestFocus()
     }
 
         fun build(
