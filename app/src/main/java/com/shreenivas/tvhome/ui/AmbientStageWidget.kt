@@ -174,7 +174,8 @@ class AmbientStageWidget(
                 var cityName = lp.weatherCity.trim()
 
                 if (cityName.isNotEmpty()) {
-                    val geoUrl = "https://open-meteo.com{URLEncoder.encode(cityName, "UTF-8")}&count=1"
+                    val encoded = URLEncoder.encode(cityName, "UTF-8")
+                    val geoUrl = "https://open-meteo.com"
                     val geoJson = JSONObject(fetchUrl(geoUrl))
                     val results = geoJson.optJSONArray("results")
                     if (results != null && results.length() > 0) {
@@ -267,10 +268,7 @@ class AmbientStageWidget(
         private val handPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
         private var accent = Color.rgb(92, 184, 255)
 
-        fun updateAccent(col: Int) {
-            accent = col
-            invalidate()
-        }
+        fun updateAccent(col: Int) { accent = col; invalidate() }
 
         override fun onDraw(canvas: Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
