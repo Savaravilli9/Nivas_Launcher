@@ -96,19 +96,23 @@ object CustomizeMenuBuilder {
             lp.badgeMode,
             onSelect = { v -> lp.badgeMode = v; onLiveRefresh(); onRebuildPanel() }
         )
-        addHeader(ctx, panel, "GLOBAL MOTION STYLE (OK TO APPLY)")
-        addSegmentedRow(
-            ctx, panel, lp, "motion",
-            MotionEngine.NAMES,
-            MotionEngine.KEYS,
-            lp.motionStyle,
-            isMotionRow = true,
-            onSelect = { v ->
-                lp.motionStyle = v
-                onLiveRefresh()
-                onBackToApps()
-            }
-        )
+                addHeader(ctx, panel, "GLOBAL MOTION STYLE (TAP TO PREVIEW)")
+        val motionTopNames = MotionEngine.NAMES.take(3)
+        val motionTopKeys = MotionEngine.KEYS.take(3)
+        val motionBotNames = MotionEngine.NAMES.drop(3)
+        val motionBotKeys = MotionEngine.KEYS.drop(3)
+
+        val onMotionPicked: (String) -> Unit = { v ->
+            lp.motionStyle = v
+            onRebuildPanel()
+            val drawerContainer = (panel.parent?.parent as? View) ?: panel
+            drawerContainer.post { MotionEngine.playDemoPreview(drawerContainer, v) }
+        }
+
+        addSegmentedRow(ctx, panel, lp, "motion", motionTopNames, motionTopKeys, lp.motionStyle, isMotionRow = true, onSelect = onMotionPicked)
+        if (motionBotNames.isNotEmpty()) {
+            addSegmentedRow(ctx, panel, lp, "motion", motionBotNames, motionBotKeys, lp.motionStyle, isMotionRow = true, onSelect = onMotionPicked)
+        }
 
         addHeader(ctx, panel, "ACCENT AURA")
         val accentKeys = listOf("royal", "magenta", "purple", "emerald", "sunset")
@@ -236,17 +240,17 @@ object CustomizeMenuBuilder {
             val pill = TextView(ctx).apply {
                 tag = tagStr
                 text = lbl
-                textSize = if (labels.size >= 5) 8.2f else 9f
+                textSize = if (labels.size >= 5) 8.4f else 9.2f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 isSingleLine = true
                 ellipsize = TextUtils.TruncateAt.END
-                setPadding(dp(ctx, 2), dp(ctx, 7), dp(ctx, 2), dp(ctx, 7))
+                setPadding(dp(ctx, 3), dp(ctx, 7), dp(ctx, 3), dp(ctx, 7))
                 isFocusable = true
                 background = pillBg(ctx, isSel, false, lp.accentColor)
                 setOnFocusChangeListener { vw, f ->
-                    MotionEngine.animateFocus(vw, f, if (isMotionRow) v else lp.motionStyle, 1.06f, 3f)
+                    MotionEngine.animateFocus(vw, f, if (isMotionRow) v else lp.motionStyle, 1.04f, 3f)
                     vw.background = pillBg(ctx, isSel, f, lp.accentColor)
                 }
                 setOnClickListener {
@@ -255,7 +259,7 @@ object CustomizeMenuBuilder {
                 }
             }
             bar.addView(pill, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                if (idx < labels.lastIndex) rightMargin = dp(ctx, 3)
+                if (idx < labels.lastIndex) rightMargin = dp(ctx, 4)
             })
         }
         panel.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 7) })
