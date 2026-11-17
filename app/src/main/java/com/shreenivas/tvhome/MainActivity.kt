@@ -129,7 +129,6 @@ class MainActivity : Activity() {
             super.onBackPressed()
         }
     }
-
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar)) {
             return true
@@ -239,7 +238,7 @@ class MainActivity : Activity() {
         }
         contentArea.addView(drawerScrim, FrameLayout.LayoutParams(-1, -1))
 
-        val drawerW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+        val drawerW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
@@ -254,13 +253,13 @@ class MainActivity : Activity() {
     private fun applyLiveVisuals() {
         topNavBar.refreshGreeting()
         LauncherBackground.updateThemeAndAccent(rootLayout, lp)
-        
-        val newW = maxOf(dp(230), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+
+        val newW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         val currentW = drawerLayout.layoutParams.width
-        
+
         if (currentW != newW && currentW > 0 && sideDrawer.isOpen) {
             android.animation.ValueAnimator.ofInt(currentW, newW).apply {
-                duration = 450L // Increased to 450ms for smoothness
+                duration = 450L
                 interpolator = LauncherUtils.FLUID_SPRING
                 addUpdateListener { anim ->
                     drawerLayout.layoutParams.width = anim.animatedValue as Int
@@ -272,12 +271,14 @@ class MainActivity : Activity() {
             drawerLayout.layoutParams.width = newW
             drawerLayout.requestLayout()
         }
-        
+
         refreshApps(!sideDrawer.isOpen)
     }
 
     private fun applyWallpaperOnly() {
-        rootLayout.removeAllViews(); rootLayout.addView(mainPage)
+        if (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
+            rootLayout.removeViewAt(0)
+        }
         LauncherBackground.apply(this, rootLayout, lp)
     }
 
