@@ -306,3 +306,60 @@ class MainActivity : Activity() {
     }
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }
+contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
+sideDrawer = SideControlDrawer(
+this, drawerLayout, drawerScrim, mainPage, lp,
+::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
+)
+}
+private fun applyLiveVisuals() {
+topNavBar.refreshGreeting()
+LauncherBackground.updateThemeAndAccent(rootLayout, lp)
+val newW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+val currentW = drawerLayout.layoutParams.width
+if (currentW != newW && currentW > 0 && sideDrawer.isOpen) {
+android.animation.ValueAnimator.ofInt(currentW, newW).apply {
+duration = 450L
+interpolator = LauncherUtils.FLUID_SPRING
+addUpdateListener { anim ->
+drawerLayout.layoutParams.width = anim.animatedValue as Int
+drawerLayout.requestLayout()
+}
+start()
+}
+} else if (currentW != newW) {
+drawerLayout.layoutParams.width = newW
+drawerLayout.requestLayout()
+}
+refreshApps(!sideDrawer.isOpen)
+}
+private fun applyWallpaperOnly() {
+if (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
+rootLayout.removeViewAt(0)
+}
+LauncherBackground.apply(this, rootLayout, lp)
+}
+private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
+val isDrawerOpen = if (::sideDrawer.isInitialized) sideDrawer.isOpen else false
+AppGridManager.populate(
+this, lp, favSection, favRow, favCount, appGrid, allCount,
+shouldRequestFocus, restorePkg, isDrawerOpen,
+object : AppTileFactory.TileActions {
+override fun onToggleFavorite(pkg: String, label: String) {
+val list = lp.getOrderedFavorites(); val added = !list.contains(pkg)
+if (added) list.add(pkg) else list.remove(pkg)
+lp.setFavorites(list)
+Toast.makeText(this@MainActivity, if (added) "$label added to Favorites" else "$label removed", Toast.LENGTH_SHORT).show()
+refreshApps(true, pkg)
+}
+override fun onMoveFavorite(pkg: String, delta: Int) { if (lp.moveFavorite(pkg, delta)) refreshApps(true, pkg) }
+override fun onHideApp(pkg: String, label: String) {
+val hidden = lp.getHiddenApps().apply { add(pkg) }; lp.setHiddenApps(hidden)
+Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
+refreshApps(true)
+}
+}
+)
+}
+private fun dp(value: Int) = LauncherUtils.dp(this, value)
+}
