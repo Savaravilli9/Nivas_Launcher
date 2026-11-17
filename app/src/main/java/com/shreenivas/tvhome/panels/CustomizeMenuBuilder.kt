@@ -73,13 +73,36 @@ object CustomizeMenuBuilder {
             panel.layoutTransition = trans
         }
 
-        val targetFocus = if (moveDown && parentCard != null) {
-            FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN) ?: parentCard
-        } else {
-            parentCard
+        if (!moveDown || parentCard == null) {
+            parentCard?.requestFocus()
+            return
         }
-        targetFocus?.requestFocus()
+
+        val parentRow = if (parentCard.parent == panel) parentCard else parentCard.parent as? View
+        val startIdx = if (parentRow != null) panel.indexOfChild(parentRow) + 1 else 0
+        var nextTarget: View? = null
+
+        for (i in startIdx until panel.childCount) {
+            val child = panel.getChildAt(i)
+            if (child.isFocusable) {
+                nextTarget = child
+                break
+            }
+            if (child is android.view.ViewGroup) {
+                for (j in 0 until child.childCount) {
+                    val sub = child.getChildAt(j)
+                    if (sub.isFocusable) {
+                        nextTarget = sub
+                        break
+                    }
+                }
+                if (nextTarget != null) break
+            }
+        }
+
+        (nextTarget ?: parentCard).requestFocus()
     }
+
 
         fun build(
         ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLiveRefresh: () -> Unit,
