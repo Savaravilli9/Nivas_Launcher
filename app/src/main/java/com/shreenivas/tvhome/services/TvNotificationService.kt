@@ -1,4 +1,4 @@
-package com.shreenivas.tvhome
+package com.shreenivas.tvhome.services
 
 import android.app.Notification
 import android.content.ComponentName
