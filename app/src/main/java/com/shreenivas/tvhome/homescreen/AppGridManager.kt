@@ -136,28 +136,25 @@ object AppGridManager {
         val byPkg = visibleApps.associateBy { it.activityInfo.packageName }
         val favOrder = lp.getOrderedFavorites()
         val favApps = favOrder.mapNotNull { byPkg[it] }
-
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) } else visibleApps.sortedBy { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) }
-
         val screenW = ctx.resources.displayMetrics.widthPixels
-        val sidePad = dp(ctx, 64)
+        val sidePad = dp(ctx, 56)
         val gap = dp(ctx, 12)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
-        val currentAvailableW = screenW - sidePad - drawerW
+        val rightStageW = maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt())
+        val currentAvailableW = screenW - sidePad - rightStageW - dp(ctx, 16)
 
-        val baseAvailableW = screenW - sidePad
-        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
-        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
-        val tileW = (baseCellW * scale).toInt()
-        val tileH = (tileW * 0.85f).toInt()
-
-        var targetCols = lp.columns
-        if (isDrawerOpen) {
-            val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
-            targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
+        val desiredTileDp = when (lp.tileSize) {
+            "small" -> 86
+            "large" -> 124
+            else -> 104
         }
-        val sideMargin = maxOf(0, ((currentAvailableW - (gap * (targetCols - 1))) / targetCols - tileW) / 2)
-
+        val desiredTilePx = dp(ctx, desiredTileDp)
+        val targetCols = ((currentAvailableW + gap) / (desiredTilePx + gap)).coerceIn(3, 8)
+        val cellW = (currentAvailableW - (gap * (targetCols - 1))) / targetCols
+        val tileW = (cellW * 0.94f).toInt()
+        val tileH = (tileW * 0.86f).toInt()
+        val sideMargin = maxOf(0, (cellW - tileW) / 2)
+        
         val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
         if (favApps.isEmpty()) {
             favSection.visibility = View.GONE
