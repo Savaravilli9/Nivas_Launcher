@@ -210,6 +210,7 @@ class AmbientStageWidget(
                     .putString("cached_temp", temp)
                     .putString("cached_cond", desc)
                     .putString("cached_city", cityName)
+                    .putInt("cached_weather_code", code)
                     .apply()
 
                 uiHandler.post {

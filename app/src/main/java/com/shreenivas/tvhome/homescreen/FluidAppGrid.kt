@@ -37,8 +37,10 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
             val row = i / columns
             val col = i % columns
             
-            val targetX = col * (tileW + gap).toFloat()
-            val targetY = row * (tileH + gap).toFloat()
+         val topPad = LauncherUtils.dpF(context, 10f)
+         val targetX = col * (tileW + gap).toFloat()
+         val targetY = topPad + row * (tileH + gap).toFloat()
+
 
             if (animate) {
                 child.animate()
@@ -81,9 +83,10 @@ class FluidAppGrid(context: Context) : FrameLayout(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         if (childCount == 0) return
-        val rows = ceil(childCount.toDouble() / columns).toInt()
-        val totalH = rows * tileH + maxOf(0, rows - 1) * gap
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), totalH)
+             val rows = ceil(childCount.toDouble() / columns).toInt()
+             val extraPad = LauncherUtils.dp(context, 22)
+             val totalH = rows * tileH + maxOf(0, rows - 1) * gap + extraPad
+             setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), totalH)
     }
 
     // ==========================================

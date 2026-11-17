@@ -74,6 +74,18 @@ class LauncherPreferences(context: Context) {
     var sortOrder: String
         get() = prefs.getString("sort_order", "az") ?: "az"
         set(value) = prefs.edit().putString("sort_order", value).apply()
+
+    var liveWallpaperMode: String
+        get() = prefs.getString("live_wp_mode", "smart") ?: "smart"
+        set(value) = prefs.edit().putString("live_wp_mode", value).apply()
+
+    var photoWeatherAura: Boolean
+        get() = prefs.getBoolean("photo_weather_aura", true)
+        set(value) = prefs.edit().putBoolean("photo_weather_aura", value).apply()
+
+    var cachedWeatherCode: Int
+        get() = prefs.getInt("cached_weather_code", 0)
+        set(value) = prefs.edit().putInt("cached_weather_code", value).apply()
     
     var motionStyle: String
         get() = prefs.getString("motion_style", MotionEngine.STYLE_ELASTIC) ?: MotionEngine.STYLE_ELASTIC
