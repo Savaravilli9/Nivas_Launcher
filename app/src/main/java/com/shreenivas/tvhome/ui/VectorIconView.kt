@@ -1,4 +1,4 @@
-package com.shreenivas.tvhome
+package com.shreenivas.tvhome.ui
 
 import android.content.Context
 import android.graphics.Canvas
