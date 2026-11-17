@@ -10,6 +10,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -33,6 +36,9 @@ class MainActivity : Activity() {
     private lateinit var rootLayout: FrameLayout
     private lateinit var mainPage: LinearLayout
     private lateinit var topNavBar: TopNavBar
+    private lateinit var hiddenSection: LinearLayout
+    private lateinit var hiddenRow: LinearLayout
+    private lateinit var hiddenCount: TextView
     private lateinit var favSection: LinearLayout
     private lateinit var favRow: LinearLayout
     private lateinit var appGrid: LinearLayout
@@ -124,6 +130,8 @@ class MainActivity : Activity() {
             } else {
                 sideDrawer.close()
             }
+        } else if (::hiddenSection.isInitialized && hiddenSection.visibility == View.VISIBLE) {
+            closeHiddenRibbon()
         } else {
             @Suppress("DEPRECATION")
             super.onBackPressed()
@@ -187,9 +195,57 @@ class MainActivity : Activity() {
         val contentArea = FrameLayout(this)
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        val mainBody = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(4), 0, 0) }
+        val mainBody = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4), 0, 0)
+            layoutTransition = LayoutTransition().apply {
+                setDuration(320L)
+                enableTransitionType(LayoutTransition.CHANGING)
+                setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
+            }
+        }
         contentArea.addView(mainBody, FrameLayout.LayoutParams(-1, -1))
 
+        // HIDDEN APPS RIBBON (Opens on demand like Favorites)
+        hiddenSection = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(dp(10), dp(6), dp(10), dp(10))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.argb(95, 255, 95, 125), Color.argb(45, 32, 24, 58))
+            ).apply {
+                cornerRadius = LauncherUtils.dpF(this@MainActivity, 18f)
+                setStroke(dp(1), Color.argb(130, 255, 130, 155))
+            }
+        }
+        val hiddenHeader = AppGridManager.createHeader(this, "👁  HIDDEN APPS", true)
+        hiddenCount = hiddenHeader.findViewWithTag("count_tv")
+        val closeHiddenBtn = TextView(this).apply {
+            text = "Done ✕"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE); isFocusable = true; isClickable = true
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(85, 255, 255, 255))
+                cornerRadius = LauncherUtils.dpF(this@MainActivity, 14f)
+                setStroke(dp(1), Color.argb(140, 255, 255, 255))
+            }
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.06f, 4f) }
+            setOnClickListener { closeHiddenRibbon() }
+        }
+        hiddenHeader.addView(closeHiddenBtn, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
+        hiddenSection.addView(hiddenHeader)
+
+        val hiddenHScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false; clipChildren = false
+        }
+        hiddenRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
+        hiddenHScroll.addView(hiddenRow)
+        hiddenSection.addView(hiddenHScroll)
+        mainBody.addView(hiddenSection, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+
+        // FAVORITES RIBBON
         favSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val favHeader = AppGridManager.createHeader(this, "♥  FAVORITES & QUICK ACCESS", true)
         favCount = favHeader.findViewWithTag("count_tv")
@@ -231,6 +287,43 @@ class MainActivity : Activity() {
         refreshApps(true)
     }
 
+    private fun openHiddenRibbon() {
+        AppGridManager.populateHiddenRibbon(this, lp, hiddenSection, hiddenRow, hiddenCount) { pkg, label ->
+            val updated = lp.getHiddenApps().apply { remove(pkg) }
+            lp.setHiddenApps(updated)
+            Toast.makeText(this, "$label restored to Home", Toast.LENGTH_SHORT).show()
+            refreshApps(false, pkg)
+            if (updated.isEmpty()) {
+                closeHiddenRibbon(pkg)
+            } else {
+                openHiddenRibbon()
+            }
+        }
+        if (hiddenSection.visibility == View.VISIBLE) {
+            hiddenSection.alpha = 0f
+            hiddenSection.scaleY = 0.90f
+            hiddenSection.animate()
+                .alpha(1f).scaleY(1f)
+                .setDuration(320L)
+                .setInterpolator(LauncherUtils.FLUID_SPRING)
+                .start()
+        }
+    }
+
+    private fun closeHiddenRibbon(focusPkg: String? = null) {
+        if (hiddenSection.visibility != View.VISIBLE) return
+        hiddenSection.animate()
+            .alpha(0f).scaleY(0.90f)
+            .setDuration(220L)
+            .setInterpolator(LauncherUtils.SILKY_EASE)
+            .withEndAction {
+                hiddenSection.visibility = View.GONE
+                hiddenSection.alpha = 1f
+                hiddenSection.scaleY = 1f
+                refreshApps(true, focusPkg)
+            }.start()
+    }
+
     private fun setupRightDrawer(contentArea: FrameLayout) {
         drawerScrim = View(this).apply {
             setBackgroundColor(0x55000000); visibility = View.GONE; isClickable = true
@@ -246,7 +339,7 @@ class MainActivity : Activity() {
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
-            ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker
+            ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
         )
     }
 
@@ -305,61 +398,4 @@ class MainActivity : Activity() {
         )
     }
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
-}
-contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
-sideDrawer = SideControlDrawer(
-this, drawerLayout, drawerScrim, mainPage, lp,
-::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
-)
-}
-private fun applyLiveVisuals() {
-topNavBar.refreshGreeting()
-LauncherBackground.updateThemeAndAccent(rootLayout, lp)
-val newW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
-val currentW = drawerLayout.layoutParams.width
-if (currentW != newW && currentW > 0 && sideDrawer.isOpen) {
-android.animation.ValueAnimator.ofInt(currentW, newW).apply {
-duration = 450L
-interpolator = LauncherUtils.FLUID_SPRING
-addUpdateListener { anim ->
-drawerLayout.layoutParams.width = anim.animatedValue as Int
-drawerLayout.requestLayout()
-}
-start()
-}
-} else if (currentW != newW) {
-drawerLayout.layoutParams.width = newW
-drawerLayout.requestLayout()
-}
-refreshApps(!sideDrawer.isOpen)
-}
-private fun applyWallpaperOnly() {
-if (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
-rootLayout.removeViewAt(0)
-}
-LauncherBackground.apply(this, rootLayout, lp)
-}
-private fun refreshApps(shouldRequestFocus: Boolean, restorePkg: String? = null) {
-val isDrawerOpen = if (::sideDrawer.isInitialized) sideDrawer.isOpen else false
-AppGridManager.populate(
-this, lp, favSection, favRow, favCount, appGrid, allCount,
-shouldRequestFocus, restorePkg, isDrawerOpen,
-object : AppTileFactory.TileActions {
-override fun onToggleFavorite(pkg: String, label: String) {
-val list = lp.getOrderedFavorites(); val added = !list.contains(pkg)
-if (added) list.add(pkg) else list.remove(pkg)
-lp.setFavorites(list)
-Toast.makeText(this@MainActivity, if (added) "$label added to Favorites" else "$label removed", Toast.LENGTH_SHORT).show()
-refreshApps(true, pkg)
-}
-override fun onMoveFavorite(pkg: String, delta: Int) { if (lp.moveFavorite(pkg, delta)) refreshApps(true, pkg) }
-override fun onHideApp(pkg: String, label: String) {
-val hidden = lp.getHiddenApps().apply { add(pkg) }; lp.setHiddenApps(hidden)
-Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
-refreshApps(true)
-}
-}
-)
-}
-private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }
