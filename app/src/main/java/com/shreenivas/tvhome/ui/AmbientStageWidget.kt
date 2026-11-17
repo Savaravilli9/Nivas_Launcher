@@ -1,6 +1,7 @@
 package com.shreenivas.tvhome.ui
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -11,13 +12,17 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.location.Geocoder
+import android.location.Location
 import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.shreenivas.tvhome.LauncherPreferences
 import com.shreenivas.tvhome.LauncherUtils
 import org.json.JSONObject
@@ -105,17 +110,17 @@ class AmbientStageWidget(
         weatherCard.apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.argb(75, 255, 255, 255), Color.argb(32, 255, 255, 255))
-            ).apply {
-                cornerRadius = LauncherUtils.dpF(ctx, 18f)
-                setStroke(dp(1), Color.argb(80, 255, 255, 255))
+            isFocusable = true
+            isClickable = true
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            background = weatherCardBg(false)
+            setOnFocusChangeListener { v, f ->
+                LauncherUtils.applyFocusSpring(v, f, 1.04f, 6f)
+                v.background = weatherCardBg(f)
             }
+            setOnClickListener { showCitySearchDialog() }
         }
-
-        val wTop = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER }
+                val wTop = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER }
         weatherIconTv.apply { text = "⛅"; textSize = 26f; setPadding(0, 0, dp(8), 0) }
         tempTv.apply {
             text = lp.prefs.getString("cached_temp", "28°C") ?: "28°C"
@@ -137,10 +142,11 @@ class AmbientStageWidget(
         }
         weatherCard.addView(condTv)
 
+        val savedCity = lp.prefs.getString("cached_city", lp.weatherCity.ifBlank { "Detecting City..." })
         cityTv.apply {
-            text = "📍 ${lp.prefs.getString("cached_city", lp.weatherCity.ifBlank { "Local Weather" })}"
+            text = "📍 $savedCity  ▾"
             textSize = 9.5f
-            setTextColor(Color.argb(195, 220, 235, 255))
+            setTextColor(Color.argb(215, 220, 238, 255))
             gravity = Gravity.CENTER
         }
         weatherCard.addView(cityTv)
@@ -149,10 +155,76 @@ class AmbientStageWidget(
         refreshStyle()
         updateTimeDisplay()
     }
-        fun refreshStyle() {
+
+    private fun weatherCardBg(focused: Boolean) = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        if (focused) intArrayOf(Color.argb(125, 255, 255, 255), Color.argb(75, 255, 255, 255))
+        else intArrayOf(Color.argb(75, 255, 255, 255), Color.argb(32, 255, 255, 255))
+    ).apply {
+        cornerRadius = LauncherUtils.dpF(context, 18f)
+        setStroke(dp(if (focused) 2 else 1), if (focused) lp.accentColor else Color.argb(80, 255, 255, 255))
+    }
+
+    private fun showCitySearchDialog() {
+        val box = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+        }
+        val input = EditText(context).apply {
+            isSingleLine = true
+            hint = "Enter city name (e.g. Visakhapatnam)"
+            setText(lp.weatherCity)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        }
+        box.addView(input)
+
+        val quickCities = listOf("Visakhapatnam", "Hyderabad", "Vijayawada", "Bengaluru", "Chennai")
+        val hintTv = TextView(context).apply {
+            text = "Quick Select or Leave Blank for Auto-Location:"
+            textSize = 11f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(10), 0, dp(6))
+        }
+        box.addView(hintTv)
+
+        val chipRow = LinearLayout(context).apply { orientation = HORIZONTAL }
+        quickCities.take(3).forEachIndexed { idx, cName ->
+            val btn = TextView(context).apply {
+                text = cName; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+                background = GradientDrawable().apply {
+                    setColor(Color.argb(65, 92, 168, 255))
+                    cornerRadius = LauncherUtils.dpF(context, 10f)
+                }
+                setOnClickListener { input.setText(cName) }
+            }
+            chipRow.addView(btn, LayoutParams(0, -2, 1f).apply { if (idx < 2) rightMargin = dp(4) })
+        }
+        box.addView(chipRow)
+
+        AlertDialog.Builder(context)
+            .setTitle("Weather Location")
+            .setView(box)
+            .setPositiveButton("Apply City") { _, _ ->
+                lp.weatherCity = input.text.toString().trim()
+                cityTv.text = "📍 Updating..."
+                triggerWeatherRefresh(true)
+            }
+            .setNeutralButton("Auto-Detect") { _, _ ->
+                lp.weatherCity = ""
+                cityTv.text = "📍 Auto-Detecting..."
+                triggerWeatherRefresh(true)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    fun refreshStyle() {
         val accent = lp.accentColor
         amPmTv.setTextColor(accent)
         analogView.updateAccent(accent)
+        weatherCard.background = weatherCardBg(weatherCard.hasFocus())
 
         val isNarrow = lp.panelWidthPct <= 22
         val dialSize = if (isNarrow) dp(112) else dp(148)
@@ -161,16 +233,16 @@ class AmbientStageWidget(
         digitalTimeTv.textSize = if (isNarrow) 21f else 26f
         analogView.requestLayout()
     }
-
-    fun triggerWeatherRefresh(force: Boolean = false) {
+        fun triggerWeatherRefresh(force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - lastWeatherFetchMs < 30 * 60 * 1000L) return
         lastWeatherFetchMs = now
 
         thread {
             try {
-                var lat = 17.6868
-                var lon = 83.2185
+                var lat = 0.0
+                var lon = 0.0
+                var hasCoords = false
                 var cityName = lp.weatherCity.trim()
 
                 if (cityName.isNotEmpty()) {
@@ -183,21 +255,48 @@ class AmbientStageWidget(
                         lat = first.getDouble("latitude")
                         lon = first.getDouble("longitude")
                         cityName = first.optString("name", cityName)
-                    }
-                } else if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-                    val loc = lm?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                        ?: lm?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    if (loc != null) {
-                        lat = loc.latitude
-                        lon = loc.longitude
-                        @Suppress("DEPRECATION")
-                        val list = Geocoder(context, Locale.getDefault()).getFromLocation(lat, lon, 1)
-                        cityName = list?.firstOrNull()?.locality ?: "Your Location"
+                        hasCoords = true
+                    } else {
+                        uiHandler.post { Toast.makeText(context, "City not found, using auto location", Toast.LENGTH_SHORT).show() }
                     }
                 }
 
-                if (cityName.isEmpty()) cityName = "Visakhapatnam"
+                if (!hasCoords && context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                    val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                    var bestLoc: Location? = null
+                    for (p in providers) {
+                        val l = try { lm?.getLastKnownLocation(p) } catch (_: Exception) { null }
+                        if (l != null && (bestLoc == null || l.time > bestLoc.time)) bestLoc = l
+                    }
+                    if (bestLoc != null) {
+                        lat = bestLoc.latitude
+                        lon = bestLoc.longitude
+                        hasCoords = true
+                        @Suppress("DEPRECATION")
+                        val list = try { Geocoder(context, Locale.getDefault()).getFromLocation(lat, lon, 1) } catch (_: Exception) { null }
+                        cityName = list?.firstOrNull()?.locality ?: ""
+                    }
+                }
+
+                if (!hasCoords || cityName.isEmpty()) {
+                    try {
+                        val ipJson = JSONObject(fetchUrl("http://ip-api.com"))
+                        if (ipJson.optString("status") == "success") {
+                            if (!hasCoords) {
+                                lat = ipJson.getDouble("lat")
+                                lon = ipJson.getDouble("lon")
+                                hasCoords = true
+                            }
+                            if (cityName.isEmpty()) cityName = ipJson.optString("city", "Visakhapatnam")
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                if (!hasCoords) {
+                    lat = 17.6868; lon = 83.2185
+                    if (cityName.isEmpty()) cityName = "Visakhapatnam"
+                }
 
                 val wUrl = "https://open-meteo.com"
                 val wJson = JSONObject(fetchUrl(wUrl))
@@ -217,7 +316,7 @@ class AmbientStageWidget(
                     weatherIconTv.text = emoji
                     tempTv.text = temp
                     condTv.text = desc
-                    cityTv.text = "📍 $cityName"
+                    cityTv.text = "📍 $cityName  ▾"
                 }
             } catch (_: Exception) {
             }
