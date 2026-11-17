@@ -53,6 +53,8 @@ class SideControlDrawer(
     private var activeScroll: ScrollView? = null
     private var activePanel: LinearLayout? = null
     private var brightnessPct = 85
+    private var stageWidget: View? = null
+    fun attachStageWidget(widget: View) { stageWidget = widget }
 
     fun toggle(mode: String) {
         if (isOpen && mode == currentMode) close() else open(mode)
@@ -85,12 +87,10 @@ class SideControlDrawer(
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
-            drawerLayout.animate()
-                .translationX(0f).alpha(1f)
-                .setDuration(420L)
-                .setInterpolator(LauncherUtils.FLUID_SPRING)
-                .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
-                .start()
+            MotionEngine.animatePanelEnter(drawerLayout, stageWidget, dynamicDrawerW, lp.motionStyle) {
+            drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+            }
+            
             drawerLayout.post { onLiveRefresh() }
         }
     }
@@ -103,14 +103,10 @@ class SideControlDrawer(
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         scrim.animate().alpha(0f).setDuration(280L).start()
 
-        drawerLayout.animate()
-            .translationX(out.toFloat()).alpha(0f)
-            .setDuration(400L)
-            .setInterpolator(LauncherUtils.FLUID_SPRING)
-            .withEndAction {
-                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
-            }.start()
+        MotionEngine.animatePanelExit(drawerLayout, stageWidget, out, lp.motionStyle) {
+        drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+        scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
+        }
         drawerLayout.post { onLiveRefresh() }
     }
 
