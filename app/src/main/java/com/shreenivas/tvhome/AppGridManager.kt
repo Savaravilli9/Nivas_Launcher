@@ -57,7 +57,7 @@ object AppGridManager {
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64)
         val gap = dp(ctx, 12)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
+        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         val currentAvailableW = screenW - sidePad - drawerW
 
         val baseAvailableW = screenW - sidePad
@@ -65,33 +65,47 @@ object AppGridManager {
         val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
         val tileW = (baseCellW * scale).toInt()
         val tileH = (tileW * 0.85f).toInt()
-        
+
         var targetCols = lp.columns
         if (isDrawerOpen) {
-             val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
-             targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
+            val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
+            targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
         val sideMargin = maxOf(0, ((currentAvailableW - (gap * (targetCols - 1))) / targetCols - tileW) / 2)
+        val visualSig = "${lp.tileColor}_${lp.tileShape}_${lp.badgeMode}_${lp.accentColor}_${lp.tileSize}_${lp.columns}"
 
-        val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
-        if (favApps.isEmpty()) favSection.visibility = View.GONE
-        else {
+        val currentFavSig = favApps.joinToString { it.activityInfo.packageName } + "_$visualSig"
+        if (favApps.isEmpty()) {
+            favSection.visibility = View.GONE
+            lastFavSignature = ""
+        } else {
             favSection.visibility = View.VISIBLE
             favCount.text = "${favApps.size} Apps"
+            favRow.setPadding(sideMargin, 0, sideMargin, 0)
             if (currentFavSig != lastFavSignature) {
                 favRow.removeAllViews()
-                favApps.forEach { info -> favRow.addView(AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions), LinearLayout.LayoutParams(tileW, tileH).apply { leftMargin = sideMargin; rightMargin = sideMargin }) }
+                favApps.forEachIndexed { idx, info ->
+                    val tile = AppTileFactory.create(
+                        ctx, pm, lp, info, isFavRow = true, isFav = true,
+                        canMoveLeft = idx > 0, canMoveRight = idx < favApps.lastIndex,
+                        w = tileW, h = tileH, actions = actions
+                    )
+                    val p = LinearLayout.LayoutParams(tileW, tileH).apply {
+                        if (idx < favApps.lastIndex) rightMargin = gap
+                    }
+                    favRow.addView(tile, p)
+                }
                 lastFavSignature = currentFavSig
             } else {
                 for (i in 0 until favRow.childCount) {
                     val child = favRow.getChildAt(i)
-                    animateLayoutParams(child, tileW, tileH, sideMargin, sideMargin)
+                    animateLayoutParams(child, tileW, tileH, 0, if (i < favRow.childCount - 1) gap else 0)
                 }
             }
         }
 
         allCount.text = "${sortedAll.size} Apps"
-        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName }
+        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName } + "_$visualSig"
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
 
         if (fluidGrid == null || currentAppSig != lastAppSignature) {
@@ -99,11 +113,17 @@ object AppGridManager {
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
             appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = sideMargin; rightMargin = sideMargin })
             val favSet = favOrder.toSet()
-            sortedAll.forEach { info -> fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) }
+            sortedAll.forEach { info ->
+                fluidGrid.addView(
+                    AppTileFactory.create(
+                        ctx, pm, lp, info, isFavRow = false, isFav = favSet.contains(info.activityInfo.packageName),
+                        canMoveLeft = false, canMoveRight = false, w = tileW, h = tileH, actions = actions
+                    )
+                )
+            }
             lastAppSignature = currentAppSig
             fluidGrid.updateGridState(targetCols, tileW, tileH, gap, animate = false)
         } else {
-            // THE MAGIC: Just animate existing tiles elastically!
             (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
                 ValueAnimator.ofInt(p.leftMargin, sideMargin).apply {
                     duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
@@ -114,7 +134,9 @@ object AppGridManager {
         }
 
         if (shouldRequestFocus) {
-            val restoreView = fluidGrid.findViewWithTag<View>("all_$restorePkg") ?: fluidGrid.getChildAt(0)
+            val restoreView = favRow.findViewWithTag<View>("fav_$restorePkg")
+                ?: fluidGrid.findViewWithTag<View>("all_$restorePkg")
+                ?: fluidGrid.getChildAt(0)
             restoreView?.post { restoreView.requestFocus() }
         }
     }
@@ -122,7 +144,7 @@ object AppGridManager {
     private fun animateLayoutParams(view: View, w: Int, h: Int, lMargin: Int, rMargin: Int) {
         val p = view.layoutParams as? LinearLayout.LayoutParams ?: return
         val startW = p.width; val startH = p.height; val startL = p.leftMargin; val startR = p.rightMargin
-        if (startW == w && startL == lMargin) return
+        if (startW == w && startL == lMargin && startR == rMargin) return
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
             addUpdateListener {
