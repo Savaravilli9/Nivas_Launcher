@@ -4,7 +4,8 @@
 -repackageclasses ''
 
 -keep public class com.shreenivas.tvhome.MainActivity
--keep public class com.shreenivas.tvhome.NightNudgeReceiver
+-keep public class com.shreenivas.tvhome.services.NightNudgeReceiver
+-keep public class com.shreenivas.tvhome.services.TvNotificationService
 
 -assumenosideeffects class kotlin.jvm.internal.Intrinsics {
     public static void checkNotNull(...);

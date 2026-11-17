@@ -1,4 +1,4 @@
-package com.shreenivas.tvhome
+package com.shreenivas.tvhome.homescreen
 
 import android.animation.ValueAnimator
 import android.content.Context
@@ -12,6 +12,8 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.shreenivas.tvhome.LauncherPreferences
+import com.shreenivas.tvhome.LauncherUtils
 import java.util.Locale
 
 object AppGridManager {
@@ -20,7 +22,12 @@ object AppGridManager {
     private var lastAppSignature = ""
     private var lastFavSignature = ""
 
-    fun clearCache() { cachedApps = null; lastAppSignature = ""; lastFavSignature = "" }
+    fun clearCache() {
+        cachedApps = null
+        lastAppSignature = ""
+        lastFavSignature = ""
+        AppTileFactory.clearAssetCache()
+    }
 
     fun createHeader(ctx: Context, title: String, isFav: Boolean, lp: LauncherPreferences? = null, onSortChanged: (() -> Unit)? = null): LinearLayout {
         return LinearLayout(ctx).apply {
@@ -81,7 +88,7 @@ object AppGridManager {
 
         hiddenApps.forEachIndexed { idx, info ->
             val pkg = info.activityInfo.packageName
-            val label = info.loadLabel(pm).toString()
+            val label = AppTileFactory.getCachedLabel(pm, info)
             val openHiddenOptions = {
                 AppActionDialog.show(
                     ctx = ctx,
@@ -130,7 +137,7 @@ object AppGridManager {
         val favOrder = lp.getOrderedFavorites()
         val favApps = favOrder.mapNotNull { byPkg[it] }
 
-        val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { it.loadLabel(pm).toString().lowercase(Locale.ROOT) } else visibleApps.sortedBy { it.loadLabel(pm).toString().lowercase(Locale.ROOT) }
+        val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) } else visibleApps.sortedBy { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) }
 
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64)
@@ -150,9 +157,8 @@ object AppGridManager {
             targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
         val sideMargin = maxOf(0, ((currentAvailableW - (gap * (targetCols - 1))) / targetCols - tileW) / 2)
-        val visualSig = "${lp.tileColor}_${lp.tileShape}_${lp.badgeMode}_${lp.accentColor}_${lp.tileSize}_${lp.columns}"
 
-        val currentFavSig = favApps.joinToString { it.activityInfo.packageName } + "_$visualSig"
+        val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
         if (favApps.isEmpty()) {
             favSection.visibility = View.GONE
             lastFavSignature = ""
@@ -177,20 +183,21 @@ object AppGridManager {
             } else {
                 for (i in 0 until favRow.childCount) {
                     val child = favRow.getChildAt(i)
+                    AppTileFactory.updateTileAppearance(ctx, child, lp, isFav = true)
                     animateLayoutParams(child, tileW, tileH, 0, if (i < favRow.childCount - 1) gap else 0)
                 }
             }
         }
 
         allCount.text = "${sortedAll.size} Apps"
-        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName } + "_$visualSig"
+        val favSet = favOrder.toSet()
+        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName } + "_${favSet.size}"
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
 
         if (fluidGrid == null || currentAppSig != lastAppSignature) {
             appGrid.removeAllViews()
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
             appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = sideMargin; rightMargin = sideMargin })
-            val favSet = favOrder.toSet()
             sortedAll.forEach { info ->
                 fluidGrid.addView(
                     AppTileFactory.create(
@@ -202,6 +209,11 @@ object AppGridManager {
             lastAppSignature = currentAppSig
             fluidGrid.updateGridState(targetCols, tileW, tileH, gap, animate = false)
         } else {
+            for (i in 0 until fluidGrid.childCount) {
+                val child = fluidGrid.getChildAt(i)
+                val pkg = sortedAll.getOrNull(i)?.activityInfo?.packageName
+                AppTileFactory.updateTileAppearance(ctx, child, lp, isFav = pkg != null && favSet.contains(pkg))
+            }
             (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
                 ValueAnimator.ofInt(p.leftMargin, sideMargin).apply {
                     duration = 320L; interpolator = LauncherUtils.FLUID_SPRING

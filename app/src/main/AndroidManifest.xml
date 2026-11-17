@@ -49,8 +49,8 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name="com.shreenivas.tvhome.NightNudgeReceiver"
+                <receiver
+            android:name="com.shreenivas.tvhome.services.NightNudgeReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -58,7 +58,7 @@
         </receiver>
 
         <service
-            android:name="com.shreenivas.tvhome.TvNotificationService"
+            android:name="com.shreenivas.tvhome.services.TvNotificationService"
             android:label="Shree TV Live Notifications"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
@@ -66,5 +66,6 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
     </application>
 </manifest>

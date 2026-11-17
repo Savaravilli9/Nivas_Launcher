@@ -1,4 +1,4 @@
-package com.shreenivas.tvhome
+package com.shreenivas.tvhome.homescreen
 
 import android.animation.ValueAnimator
 import android.content.Context
@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
@@ -17,13 +18,34 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import com.shreenivas.tvhome.LauncherPreferences
+import com.shreenivas.tvhome.LauncherUtils
+import java.util.concurrent.ConcurrentHashMap
 
 object AppTileFactory {
+
+    private val iconCache = ConcurrentHashMap<String, Drawable>()
+    private val labelCache = ConcurrentHashMap<String, String>()
+
+    fun clearAssetCache() {
+        iconCache.clear()
+        labelCache.clear()
+    }
 
     interface TileActions {
         fun onToggleFavorite(pkg: String, label: String)
         fun onMoveFavorite(pkg: String, delta: Int)
         fun onHideApp(pkg: String, label: String)
+    }
+
+    fun getCachedLabel(pm: PackageManager, info: ResolveInfo): String {
+        val pkg = info.activityInfo.packageName
+        return labelCache.getOrPut(pkg) { info.loadLabel(pm).toString() }
+    }
+
+    private fun getCachedIcon(pm: PackageManager, info: ResolveInfo): Drawable {
+        val pkg = info.activityInfo.packageName
+        return iconCache.getOrPut(pkg) { info.loadIcon(pm) }
     }
 
     fun create(
@@ -33,8 +55,8 @@ object AppTileFactory {
         w: Int, h: Int, actions: TileActions
     ): View {
         val pkg = info.activityInfo.packageName
-        val label = info.loadLabel(pm).toString()
-        val icon = info.loadIcon(pm)
+        val label = getCachedLabel(pm, info)
+        val icon = getCachedIcon(pm, info)
 
         var breathingAnim: ValueAnimator? = null
 
@@ -55,6 +77,7 @@ object AppTileFactory {
 
         val safeMargin = LauncherUtils.dp(ctx, 8)
         val innerCard = GlowTileLayout(ctx).apply {
+            tag = "glow_card"
             isFocusable = false
             isClickable = false
             clipChildren = false
@@ -68,12 +91,9 @@ object AppTileFactory {
             isClickable = false
         }
 
-        val imgSize = when (lp.tileSize) {
-            "large" -> dp(ctx, 52)
-            "small" -> dp(ctx, 34)
-            else -> dp(ctx, 42)
-        }
+        val imgSize = getIconSizePx(ctx, lp.tileSize)
         val iv = ImageView(ctx).apply {
+            tag = "tile_icon"
             setImageDrawable(icon)
             layoutParams = LinearLayout.LayoutParams(imgSize, imgSize).apply {
                 bottomMargin = dp(ctx, 4)
@@ -82,6 +102,7 @@ object AppTileFactory {
         contentBox.addView(iv)
 
         val tv = TextView(ctx).apply {
+            tag = "tile_label"
             text = label
             textSize = if (lp.columns > 6) 9f else 10.5f
             setTextColor(Color.WHITE)
@@ -93,27 +114,24 @@ object AppTileFactory {
         }
         contentBox.addView(tv)
         innerCard.addView(contentBox, FrameLayout.LayoutParams(-1, -1))
-
         val cardParams = FrameLayout.LayoutParams(-1, -1).apply {
             setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
         wrapper.addView(innerCard, cardParams)
 
-        if (lp.badgeMode != "none" && isFav) {
-            val badge = TextView(ctx).apply {
-                text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
-                textSize = 9.5f
-                setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.argb(220, 15, 20, 35))
-                }
-                gravity = Gravity.CENTER
+        val badge = TextView(ctx).apply {
+            tag = "tile_badge"
+            textSize = 9.5f
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(220, 15, 20, 35))
             }
-            wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx, 18), dp(ctx, 18), Gravity.TOP or Gravity.END).apply {
-                topMargin = dp(ctx, 4); rightMargin = dp(ctx, 4)
-            })
+            gravity = Gravity.CENTER
         }
+        wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx, 18), dp(ctx, 18), Gravity.TOP or Gravity.END).apply {
+            topMargin = dp(ctx, 4); rightMargin = dp(ctx, 4)
+        })
+        applyBadgeState(badge, lp, isFav)
 
         wrapper.setOnFocusChangeListener { _, hasFocus ->
             val targetScale = if (hasFocus) 1.14f else 1.0f
@@ -187,6 +205,36 @@ object AppTileFactory {
         }
 
         return wrapper
+    }
+
+    fun updateTileAppearance(ctx: Context, wrapper: View, lp: LauncherPreferences, isFav: Boolean) {
+        wrapper.findViewWithTag<GlowTileLayout>("glow_card")?.setStyle(lp.accentColor, lp.tileShape, lp.tileColor)
+        wrapper.findViewWithTag<ImageView>("tile_icon")?.let { iv ->
+            val size = getIconSizePx(ctx, lp.tileSize)
+            if (iv.layoutParams.width != size) {
+                iv.layoutParams.width = size
+                iv.layoutParams.height = size
+                iv.requestLayout()
+            }
+        }
+        wrapper.findViewWithTag<TextView>("tile_label")?.textSize = if (lp.columns > 6) 9f else 10.5f
+        wrapper.findViewWithTag<TextView>("tile_badge")?.let { applyBadgeState(it, lp, isFav) }
+    }
+
+    private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
+        if (lp.badgeMode != "none" && isFav) {
+            badge.visibility = View.VISIBLE
+            badge.text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
+            badge.setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
+        } else {
+            badge.visibility = View.GONE
+        }
+    }
+
+    private fun getIconSizePx(ctx: Context, tileSize: String): Int = when (tileSize) {
+        "large" -> dp(ctx, 52)
+        "small" -> dp(ctx, 34)
+        else -> dp(ctx, 42)
     }
 
     private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)

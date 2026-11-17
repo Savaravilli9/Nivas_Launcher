@@ -1,4 +1,10 @@
-package com.shreenivas.tvhome
+package com.shreenivas.tvhome.panels
+
+import com.shreenivas.tvhome.LauncherPreferences
+import com.shreenivas.tvhome.homescreen.AppGridManager
+import com.shreenivas.tvhome.services.TvNotificationService
+import com.shreenivas.tvhome.ui.TileThemePalette
+import com.shreenivas.tvhome.LauncherUtils
 
 import android.content.Context
 import android.content.Intent
