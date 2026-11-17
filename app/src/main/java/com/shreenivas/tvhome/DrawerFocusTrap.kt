@@ -4,6 +4,7 @@ import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.SeekBar
 
 object DrawerFocusTrap {
 
@@ -27,6 +28,10 @@ object DrawerFocusTrap {
         if (current == null) current = topNavBar.findFocus()
 
         if (inDrawer && current != null) {
+            if (current is SeekBar && (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                return false
+            }
+
             val tag = current.tag as? String ?: ""
             if (tag.startsWith("pill_")) {
                 if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) {

@@ -166,9 +166,20 @@ class TopNavBar(
             background = pillBg(false, lp.accentColor)
             setOnFocusChangeListener { v, f ->
                 LauncherUtils.applyFocusSpring(v, f, 1.07f, 8f)
+                if (wifiStateMode == 2) {
+                    val green = Color.rgb(46, 232, 138)
+                    v.background = GradientDrawable().apply {
+                        setColor(if (f) Color.argb(125, 34, 130, 86) else Color.argb(75, 24, 98, 64))
+                        setStroke(dp(if (f) 2 else 1), if (f) Color.WHITE else green)
+                        cornerRadius = LauncherUtils.dpF(context, 22f)
+                    }
+                } else {
+                    v.background = pillBg(f, lp.accentColor)
+                }
             }
             setOnClickListener { callbacks.onWifiClick() }
         }
+
         wifiWrapper.addView(wifiPill, FrameLayout.LayoutParams(-2, dp(38), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
 
         wifiBubbleTv = TextView(context).apply {

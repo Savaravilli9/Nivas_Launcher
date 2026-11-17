@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -42,6 +43,83 @@ object AppGridManager {
         }
     }
 
+    fun populateHiddenRibbon(
+        ctx: Context, lp: LauncherPreferences, hiddenSection: LinearLayout, hiddenRow: LinearLayout,
+        hiddenCount: TextView, onUnhideApp: (String, String) -> Unit
+    ) {
+        val pm = ctx.packageManager
+        val hiddenSet = lp.getHiddenApps()
+        val hiddenApps = getInstalledApps(pm).filter { hiddenSet.contains(it.activityInfo.packageName) }
+
+        if (hiddenApps.isEmpty()) {
+            hiddenSection.visibility = View.GONE
+            hiddenRow.removeAllViews()
+            return
+        }
+
+        hiddenSection.visibility = View.VISIBLE
+        hiddenCount.text = "${hiddenApps.size} Hidden • Select for Options"
+
+        val screenW = ctx.resources.displayMetrics.widthPixels
+        val sidePad = dp(ctx, 64)
+        val gap = dp(ctx, 12)
+        val baseAvailableW = screenW - sidePad
+        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
+        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
+        val tileW = (baseCellW * scale).toInt()
+        val tileH = (tileW * 0.85f).toInt()
+        val sideMargin = maxOf(0, ((baseAvailableW - (gap * (lp.columns - 1))) / lp.columns - tileW) / 2)
+
+        hiddenRow.setPadding(sideMargin, 0, sideMargin, 0)
+        hiddenRow.removeAllViews()
+
+        val dummyActions = object : AppTileFactory.TileActions {
+            override fun onToggleFavorite(pkg: String, label: String) {}
+            override fun onMoveFavorite(pkg: String, delta: Int) {}
+            override fun onHideApp(pkg: String, label: String) {}
+        }
+
+        hiddenApps.forEachIndexed { idx, info ->
+            val pkg = info.activityInfo.packageName
+            val label = info.loadLabel(pm).toString()
+            val openHiddenOptions = {
+                AppActionDialog.show(
+                    ctx = ctx,
+                    pkg = pkg,
+                    appName = label,
+                    isFav = false,
+                    canMoveLeft = false,
+                    canMoveRight = false,
+                    accent = lp.accentColor,
+                    isHiddenMode = true,
+                    onHideOrUnhideApp = { onUnhideApp(pkg, label) }
+                )
+            }
+            val tile = AppTileFactory.create(
+                ctx, pm, lp, info, isFavRow = false, isFav = false,
+                canMoveLeft = false, canMoveRight = false,
+                w = tileW, h = tileH, actions = dummyActions
+            ).apply {
+                tag = "hidden_$pkg"
+                setOnClickListener { openHiddenOptions() }
+                setOnLongClickListener { openHiddenOptions(); true }
+                setOnKeyListener { _, keyCode, event ->
+                    if (event.action == KeyEvent.ACTION_DOWN &&
+                        (keyCode == KeyEvent.KEYCODE_MENU || (keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.isLongPress))
+                    ) {
+                        openHiddenOptions()
+                        true
+                    } else false
+                }
+            }
+            val p = LinearLayout.LayoutParams(tileW, tileH).apply {
+                if (idx < hiddenApps.lastIndex) rightMargin = gap
+            }
+            hiddenRow.addView(tile, p)
+        }
+        hiddenRow.getChildAt(0)?.post { hiddenRow.getChildAt(0)?.requestFocus() }
+    }
+
     fun populate(
         ctx: Context, lp: LauncherPreferences, favSection: LinearLayout, favRow: LinearLayout, favCount: TextView,
         appGrid: LinearLayout, allCount: TextView, shouldRequestFocus: Boolean, restorePkg: String?, isDrawerOpen: Boolean, actions: AppTileFactory.TileActions
@@ -57,7 +135,7 @@ object AppGridManager {
         val screenW = ctx.resources.displayMetrics.widthPixels
         val sidePad = dp(ctx, 64)
         val gap = dp(ctx, 12)
-        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 230), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
+        val drawerW = if (isDrawerOpen) maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt()) else 0
         val currentAvailableW = screenW - sidePad - drawerW
 
         val baseAvailableW = screenW - sidePad
@@ -65,33 +143,47 @@ object AppGridManager {
         val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
         val tileW = (baseCellW * scale).toInt()
         val tileH = (tileW * 0.85f).toInt()
-        
+
         var targetCols = lp.columns
         if (isDrawerOpen) {
-             val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
-             targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
+            val maxFittingCols = (currentAvailableW + gap) / (baseCellW + gap)
+            targetCols = minOf(lp.columns, maxOf(3, maxFittingCols))
         }
         val sideMargin = maxOf(0, ((currentAvailableW - (gap * (targetCols - 1))) / targetCols - tileW) / 2)
+        val visualSig = "${lp.tileColor}_${lp.tileShape}_${lp.badgeMode}_${lp.accentColor}_${lp.tileSize}_${lp.columns}"
 
-        val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
-        if (favApps.isEmpty()) favSection.visibility = View.GONE
-        else {
+        val currentFavSig = favApps.joinToString { it.activityInfo.packageName } + "_$visualSig"
+        if (favApps.isEmpty()) {
+            favSection.visibility = View.GONE
+            lastFavSignature = ""
+        } else {
             favSection.visibility = View.VISIBLE
             favCount.text = "${favApps.size} Apps"
+            favRow.setPadding(sideMargin, 0, sideMargin, 0)
             if (currentFavSig != lastFavSignature) {
                 favRow.removeAllViews()
-                favApps.forEach { info -> favRow.addView(AppTileFactory.create(ctx, pm, lp, info, true, true, tileW, tileH, actions), LinearLayout.LayoutParams(tileW, tileH).apply { leftMargin = sideMargin; rightMargin = sideMargin }) }
+                favApps.forEachIndexed { idx, info ->
+                    val tile = AppTileFactory.create(
+                        ctx, pm, lp, info, isFavRow = true, isFav = true,
+                        canMoveLeft = idx > 0, canMoveRight = idx < favApps.lastIndex,
+                        w = tileW, h = tileH, actions = actions
+                    )
+                    val p = LinearLayout.LayoutParams(tileW, tileH).apply {
+                        if (idx < favApps.lastIndex) rightMargin = gap
+                    }
+                    favRow.addView(tile, p)
+                }
                 lastFavSignature = currentFavSig
             } else {
                 for (i in 0 until favRow.childCount) {
                     val child = favRow.getChildAt(i)
-                    animateLayoutParams(child, tileW, tileH, sideMargin, sideMargin)
+                    animateLayoutParams(child, tileW, tileH, 0, if (i < favRow.childCount - 1) gap else 0)
                 }
             }
         }
 
         allCount.text = "${sortedAll.size} Apps"
-        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName }
+        val currentAppSig = sortedAll.joinToString { it.activityInfo.packageName } + "_$visualSig"
         var fluidGrid = appGrid.findViewWithTag<FluidAppGrid>("fluid_engine")
 
         if (fluidGrid == null || currentAppSig != lastAppSignature) {
@@ -99,11 +191,17 @@ object AppGridManager {
             fluidGrid = FluidAppGrid(ctx).apply { tag = "fluid_engine" }
             appGrid.addView(fluidGrid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { leftMargin = sideMargin; rightMargin = sideMargin })
             val favSet = favOrder.toSet()
-            sortedAll.forEach { info -> fluidGrid.addView(AppTileFactory.create(ctx, pm, lp, info, false, favSet.contains(info.activityInfo.packageName), tileW, tileH, actions)) }
+            sortedAll.forEach { info ->
+                fluidGrid.addView(
+                    AppTileFactory.create(
+                        ctx, pm, lp, info, isFavRow = false, isFav = favSet.contains(info.activityInfo.packageName),
+                        canMoveLeft = false, canMoveRight = false, w = tileW, h = tileH, actions = actions
+                    )
+                )
+            }
             lastAppSignature = currentAppSig
             fluidGrid.updateGridState(targetCols, tileW, tileH, gap, animate = false)
         } else {
-            // THE MAGIC: Just animate existing tiles elastically!
             (fluidGrid.layoutParams as? LinearLayout.LayoutParams)?.let { p ->
                 ValueAnimator.ofInt(p.leftMargin, sideMargin).apply {
                     duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
@@ -114,7 +212,9 @@ object AppGridManager {
         }
 
         if (shouldRequestFocus) {
-            val restoreView = fluidGrid.findViewWithTag<View>("all_$restorePkg") ?: fluidGrid.getChildAt(0)
+            val restoreView = favRow.findViewWithTag<View>("fav_$restorePkg")
+                ?: fluidGrid.findViewWithTag<View>("all_$restorePkg")
+                ?: fluidGrid.getChildAt(0)
             restoreView?.post { restoreView.requestFocus() }
         }
     }
@@ -122,7 +222,7 @@ object AppGridManager {
     private fun animateLayoutParams(view: View, w: Int, h: Int, lMargin: Int, rMargin: Int) {
         val p = view.layoutParams as? LinearLayout.LayoutParams ?: return
         val startW = p.width; val startH = p.height; val startL = p.leftMargin; val startR = p.rightMargin
-        if (startW == w && startL == lMargin) return
+        if (startW == w && startL == lMargin && startR == rMargin) return
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 320L; interpolator = LauncherUtils.FLUID_SPRING
             addUpdateListener {

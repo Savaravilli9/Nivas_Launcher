@@ -2,6 +2,8 @@ package com.shreenivas.tvhome
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -43,7 +45,12 @@ object LauncherBackground {
                 scaleX = baseZoom; scaleY = baseZoom
                 translationX = sp.getInt("wp_offset_x", 0).toFloat()
                 translationY = baseOffsetY.toFloat()
-                try { setImageURI(Uri.parse(wallpaper)) } catch (_: Exception) {}
+                val bmp = decodeSampledBitmapFromUri(ctx, Uri.parse(wallpaper))
+                if (bmp != null) {
+                    setImageBitmap(bmp)
+                } else {
+                    try { setImageURI(Uri.parse(wallpaper)) } catch (_: Exception) {}
+                }
             }
             root.addView(image, 0, FrameLayout.LayoutParams(-1, -1))
             activeWallpaperView = image
@@ -52,6 +59,34 @@ object LauncherBackground {
             val cosmos = RoyalMoonCosmosView(ctx, lp.accentColor)
             root.addView(cosmos, 0, FrameLayout.LayoutParams(-1, -1))
             activeCosmosView = cosmos
+        }
+    }
+
+    private fun decodeSampledBitmapFromUri(ctx: Context, uri: Uri): Bitmap? {
+        return try {
+            val dm = ctx.resources.displayMetrics
+            val reqW = maxOf(1280, dm.widthPixels)
+            val reqH = maxOf(720, dm.heightPixels)
+
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+
+            var inSampleSize = 1
+            if (options.outHeight > reqH || options.outWidth > reqW) {
+                val halfH = options.outHeight / 2
+                val halfW = options.outWidth / 2
+                while (halfH / inSampleSize >= reqH && halfW / inSampleSize >= reqW) {
+                    inSampleSize *= 2
+                }
+            }
+
+            val decodeOpts = BitmapFactory.Options().apply {
+                this.inSampleSize = inSampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOpts) }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -118,11 +153,10 @@ object LauncherBackground {
             skyPaint.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(Color.rgb(10, 16, 36), Color.rgb(18, 28, 56), Color.rgb(8, 12, 28)), floatArrayOf(0f, 0.50f, 1f), Shader.TileMode.CLAMP)
             themeAuraPaint.shader = RadialGradient(w * 0.32f, h * 0.42f, w * 0.65f, intArrayOf(LauncherUtils.withAlpha(accentColor, 65), Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
             
-            val moonX = w * 0.5f // TOP CENTER POSITION
+            val moonX = w * 0.5f
             val moonY = h * 0.15f
             val moonR = 24f * resources.displayMetrics.density
 
-            // NATURAL DISSOLVING GLOW (No rings)
             naturalGlowPaint.shader = RadialGradient(
                 moonX, moonY, w * 0.5f,
                 intArrayOf(Color.argb(220, 255, 245, 190), Color.argb(90, 255, 220, 130), Color.argb(25, 255, 200, 100), Color.TRANSPARENT),
@@ -139,12 +173,12 @@ object LauncherBackground {
             canvas.drawRect(0f, 0f, w, h, skyPaint)
             canvas.drawRect(0f, 0f, w, h, themeAuraPaint)
 
-            val moonX = w * 0.5f // TOP CENTER
+            val moonX = w * 0.5f
             val moonY = h * 0.15f - parallaxY * 0.35f
             val moonR = 24f * resources.displayMetrics.density
 
-            canvas.drawCircle(moonX, moonY, w * 0.5f, naturalGlowPaint) // Natural Glow
-            canvas.drawCircle(moonX, moonY, moonR, moonDiscPaint) // Moon Disc
+            canvas.drawCircle(moonX, moonY, w * 0.5f, naturalGlowPaint)
+            canvas.drawCircle(moonX, moonY, moonR, moonDiscPaint)
             canvas.drawCircle(moonX - moonR * 0.32f, moonY - moonR * 0.18f, moonR * 0.22f, craterPaint)
             canvas.drawCircle(moonX + moonR * 0.28f, moonY + moonR * 0.24f, moonR * 0.16f, craterPaint)
 

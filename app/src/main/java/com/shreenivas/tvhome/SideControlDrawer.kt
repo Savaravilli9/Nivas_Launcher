@@ -29,7 +29,8 @@ class SideControlDrawer(
     private val lp: LauncherPreferences,
     private val onLiveRefresh: () -> Unit,
     private val onWallpaperRefresh: () -> Unit,
-    private val onPickWallpaper: () -> Unit
+    private val onPickWallpaper: () -> Unit,
+    private val onOpenHiddenRibbon: () -> Unit
 ) {
     companion object {
         const val MODE_CUSTOMIZE = "customize"
@@ -72,19 +73,19 @@ class SideControlDrawer(
         populateActivePanel(true)
 
         if (!wasOpen) {
-            onLiveRefresh() 
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(450L).start() 
+            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(360L).start()
 
             val startX = dynamicDrawerW + dp(30f)
             drawerLayout.translationX = startX.toFloat()
             drawerLayout.alpha = 0f
             drawerLayout.animate()
                 .translationX(0f).alpha(1f)
-                .setDuration(450L) 
+                .setDuration(420L)
                 .setInterpolator(LauncherUtils.FLUID_SPRING)
                 .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
                 .start()
+            drawerLayout.post { onLiveRefresh() }
         }
     }
 
@@ -94,18 +95,17 @@ class SideControlDrawer(
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        scrim.animate().alpha(0f).setDuration(300L).start()
-        
-        onLiveRefresh() 
-        
+        scrim.animate().alpha(0f).setDuration(280L).start()
+
         drawerLayout.animate()
             .translationX(out.toFloat()).alpha(0f)
-            .setDuration(450L) 
+            .setDuration(400L)
             .setInterpolator(LauncherUtils.FLUID_SPRING)
             .withEndAction {
                 drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
                 scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
             }.start()
+        drawerLayout.post { onLiveRefresh() }
     }
 
     private fun setupDrawerSkeleton() {
@@ -146,7 +146,8 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-        private fun populateActivePanel(isInitialOpen: Boolean) {
+
+    private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 
@@ -155,6 +156,7 @@ class SideControlDrawer(
                 context, panel, lp, onLiveRefresh, { populateActivePanel(false) },
                 ::showUserNameDialog,
                 { if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null) open(MODE_WALLPAPER_EDIT) else onPickWallpaper() },
+                onOpenHiddenRibbon,
                 ::close
             )
             MODE_WIFI -> WifiPanelBuilder.build(context, panel, lp) { populateActivePanel(false) }

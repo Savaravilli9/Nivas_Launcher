@@ -29,14 +29,22 @@ object AppTileFactory {
     fun create(
         ctx: Context, pm: PackageManager, lp: LauncherPreferences,
         info: ResolveInfo, isFavRow: Boolean, isFav: Boolean,
+        canMoveLeft: Boolean, canMoveRight: Boolean,
         w: Int, h: Int, actions: TileActions
     ): View {
         val pkg = info.activityInfo.packageName
         val label = info.loadLabel(pm).toString()
         val icon = info.loadIcon(pm)
 
-        // 1. ఔటర్ కంటైనర్ (ఇది కట్ అవ్వకుండా సేఫ్ బౌండరీ ఇస్తుంది)
-        val wrapper = FrameLayout(ctx).apply {
+        var breathingAnim: ValueAnimator? = null
+
+        val wrapper = object : FrameLayout(ctx) {
+            override fun onDetachedFromWindow() {
+                super.onDetachedFromWindow()
+                breathingAnim?.cancel()
+                breathingAnim = null
+            }
+        }.apply {
             layoutParams = LinearLayout.LayoutParams(w, h)
             clipChildren = false
             clipToPadding = false
@@ -45,38 +53,21 @@ object AppTileFactory {
             tag = if (isFavRow) "fav_$pkg" else "all_$pkg"
         }
 
-        // 2. ఇన్నర్ కార్డ్ (ఇది స్కేల్ అవుతుంది మరియు గ్లో అవుతుంది)
-        val safeMargin = LauncherUtils.dp(ctx, 10) // 10dp సేఫ్ జోన్ 
-        val innerCard = LinearLayout(ctx).apply {
+        val safeMargin = LauncherUtils.dp(ctx, 8)
+        val innerCard = GlowTileLayout(ctx).apply {
+            isFocusable = false
+            isClickable = false
+            clipChildren = false
+            setStyle(lp.accentColor, lp.tileShape, lp.tileColor)
+        }
+
+        val contentBox = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isFocusable = false
             isClickable = false
-            clipChildren = false
-        }
-        
-        val cardParams = FrameLayout.LayoutParams(-1, -1).apply {
-            setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
 
-        // డైనమిక్ బ్యాక్‌గ్రౌండ్ & షేప్
-        val bg = GradientDrawable().apply {
-            shape = if (lp.tileShape == "circle") GradientDrawable.OVAL else GradientDrawable.RECTANGLE
-            if (lp.tileShape != "circle") {
-                cornerRadius = when(lp.tileShape) {
-                    "squircle" -> LauncherUtils.dpF(ctx, 22f)
-                    "heart" -> LauncherUtils.dpF(ctx, 18f)
-                    else -> LauncherUtils.dpF(ctx, 12f)
-                }
-            }
-            // గ్లాసీ ఎఫెక్ట్
-            orientation = GradientDrawable.Orientation.TL_BR
-            colors = intArrayOf(Color.argb(140, 32, 42, 75), Color.argb(80, 20, 28, 55))
-            setStroke(LauncherUtils.dp(ctx, 1), Color.argb(40, 255, 255, 255))
-        }
-        innerCard.background = bg
-
-        // యాప్ ఐకాన్ సైజింగ్
         val imgSize = when (lp.tileSize) {
             "large" -> dp(ctx, 52)
             "small" -> dp(ctx, 34)
@@ -88,9 +79,8 @@ object AppTileFactory {
                 bottomMargin = dp(ctx, 4)
             }
         }
-        innerCard.addView(iv)
+        contentBox.addView(iv)
 
-        // యాప్ టైటిల్
         val tv = TextView(ctx).apply {
             text = label
             textSize = if (lp.columns > 6) 9f else 10.5f
@@ -101,35 +91,34 @@ object AppTileFactory {
             gravity = Gravity.CENTER
             setPadding(dp(ctx, 6), 0, dp(ctx, 6), 0)
         }
-        innerCard.addView(tv)
+        contentBox.addView(tv)
+        innerCard.addView(contentBox, FrameLayout.LayoutParams(-1, -1))
+
+        val cardParams = FrameLayout.LayoutParams(-1, -1).apply {
+            setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
+        }
         wrapper.addView(innerCard, cardParams)
 
-        // ఐకాన్ బ్యాడ్జ్
-        if (lp.badgeMode != "none") {
+        if (lp.badgeMode != "none" && isFav) {
             val badge = TextView(ctx).apply {
-                text = when(lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
+                text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
                 textSize = 9.5f
-                setTextColor(if(lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
+                setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(Color.argb(220, 15, 20, 35))
                 }
                 gravity = Gravity.CENTER
             }
-            wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx,18), dp(ctx,18), Gravity.TOP or Gravity.END).apply {
+            wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx, 18), dp(ctx, 18), Gravity.TOP or Gravity.END).apply {
                 topMargin = dp(ctx, 4); rightMargin = dp(ctx, 4)
             })
         }
 
-        // ==========================================
-        // YOUTUBE-STYLE BREATHING GLOW ANIMATION
-        // ==========================================
-        var breathingAnim: ValueAnimator? = null
-
         wrapper.setOnFocusChangeListener { _, hasFocus ->
-            val targetScale = if (hasFocus) 1.15f else 1.0f
-            
-            // బటర్-స్మూత్ స్కేల్ ఎఫెక్ట్
+            val targetScale = if (hasFocus) 1.14f else 1.0f
+
+            innerCard.animate().cancel()
             innerCard.animate()
                 .scaleX(targetScale).scaleY(targetScale)
                 .setDuration(220L)
@@ -138,49 +127,62 @@ object AppTileFactory {
 
             if (hasFocus) {
                 innerCard.elevation = LauncherUtils.dpF(ctx, 14f)
-                tv.isSelected = true // లాంగ్ టెక్స్ట్ ఉంటే స్క్రోల్ అవ్వడానికి (Marquee)
-                
-                // నియాన్ బ్రీతింగ్ (In & Out Glow)
-                breathingAnim = ValueAnimator.ofInt(40, 255).apply {
-                    duration = 850L // శ్వాస తీసుకున్నంత స్లోగా
+                tv.isSelected = true
+                breathingAnim?.cancel()
+                breathingAnim = ValueAnimator.ofFloat(0.96f, 1.0f).apply {
+                    duration = 850L
                     repeatMode = ValueAnimator.REVERSE
                     repeatCount = ValueAnimator.INFINITE
                     interpolator = AccelerateDecelerateInterpolator()
                     addUpdateListener {
-                        val alpha = it.animatedValue as Int
-                        // యాసెంట్ కలర్ తో స్ట్రోక్ బ్లింక్ అవుతుంది
-                        bg.setStroke(LauncherUtils.dp(ctx, 2), LauncherUtils.withAlpha(lp.accentColor, alpha))
-                        innerCard.background = bg 
+                        innerCard.alpha = it.animatedValue as Float
                     }
                     start()
                 }
             } else {
                 tv.isSelected = false
                 innerCard.elevation = 0f
-                breathingAnim?.cancel() // ఫోకస్ పోగానే యానిమేషన్ ఆగిపోతుంది
-                bg.setStroke(LauncherUtils.dp(ctx, 1), Color.argb(40, 255, 255, 255))
-                innerCard.background = bg
+                breathingAnim?.cancel()
+                breathingAnim = null
+                innerCard.alpha = 1.0f
             }
         }
 
-        // క్లిక్ మరియు లాంగ్ క్లిక్ యాక్షన్స్
+        val openDialog = {
+            AppActionDialog.show(
+                ctx = ctx,
+                pkg = pkg,
+                appName = label,
+                isFav = isFav,
+                canMoveLeft = isFavRow && canMoveLeft,
+                canMoveRight = isFavRow && canMoveRight,
+                accent = lp.accentColor,
+                isHiddenMode = false,
+                onToggleFav = { actions.onToggleFavorite(pkg, label) },
+                onMoveFav = { delta -> actions.onMoveFavorite(pkg, delta) },
+                onHideOrUnhideApp = { actions.onHideApp(pkg, label) }
+            )
+        }
+
         wrapper.setOnClickListener {
             try {
-                ctx.startActivity(pm.getLaunchIntentForPackage(pkg))
-            } catch (e: Exception) {
+                val launchIntent = pm.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) ctx.startActivity(launchIntent)
+                else Toast.makeText(ctx, "App cannot be launched", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
                 Toast.makeText(ctx, "App not found", Toast.LENGTH_SHORT).show()
             }
         }
 
         wrapper.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && (keyCode == KeyEvent.KEYCODE_MENU || (keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.isLongPress))) {
-                actions.onToggleFavorite(pkg, label)
+                openDialog()
                 true
             } else false
         }
 
         wrapper.setOnLongClickListener {
-            actions.onToggleFavorite(pkg, label)
+            openDialog()
             true
         }
 

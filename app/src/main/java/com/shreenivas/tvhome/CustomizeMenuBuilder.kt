@@ -72,23 +72,35 @@ object CustomizeMenuBuilder {
         }
     }
 
-    fun build(
+        fun build(
         ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLiveRefresh: () -> Unit,
-        onRebuildPanel: () -> Unit, onEditProfile: () -> Unit, onOpenWallpaper: () -> Unit, onBackToApps: () -> Unit
+        onRebuildPanel: () -> Unit, onEditProfile: () -> Unit, onOpenWallpaper: () -> Unit,
+        onOpenHiddenRibbon: () -> Unit, onBackToApps: () -> Unit
     ) {
         activePanelRef = panel; activeCloseDrawerRef = onBackToApps; activeSubBoxRef = null; openSubMenu = ""
         (panel.findFocus()?.tag as? String)?.let { lastFocusedTag = it }
         ignoreFocusTrigger = true
-        
-        panel.layoutTransition = LayoutTransition().apply { 
+
+        panel.layoutTransition = LayoutTransition().apply {
             setDuration(220L); enableTransitionType(LayoutTransition.CHANGING)
             setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
         }
         panel.removeAllViews()
         val widthPct = lp.panelWidthPct; val narrowMode = widthPct <= 22
 
-        addHeader(ctx, panel, "USER PROFILE & GREETINGS")
+        addHeader(ctx, panel, "USER PROFILE & VISIBILITY")
         addWideCard(ctx, panel, "card_profile", "👤", "User Profile & Greetings", "\"${lp.userName}\" • Custom greeting", "Edit ›", lp.accentColor, Color.rgb(68, 138, 255), onEditProfile)
+
+        val hiddenSet = lp.getHiddenApps()
+        val hiddenSub = if (hiddenSet.isEmpty()) "No apps hidden right now" else "${hiddenSet.size} app(s) hidden • Tap to view ribbon"
+        addWideCard(ctx, panel, "card_hidden", "👁", "Hidden Apps", hiddenSub, if (hiddenSet.isEmpty()) "None" else "Show ›", lp.accentColor, Color.rgb(255, 115, 130)) {
+            if (hiddenSet.isEmpty()) {
+                android.widget.Toast.makeText(ctx, "No hidden apps right now", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                onBackToApps()
+                onOpenHiddenRibbon()
+            }
+        }
         addHeader(ctx, panel, "DISPLAY PRESETS")
         addAccordionPair(ctx, panel, lp, narrowMode, "tile_size", "📐", "Tile Size", cap(lp.tileSize), Color.rgb(64, 156, 255), "panel_width", "◫", "Panel Width", "$widthPct%", Color.rgb(156, 92, 255), onLiveRefresh)
         addHeader(ctx, panel, "TILE & BADGE STYLING")
