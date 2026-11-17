@@ -222,7 +222,7 @@ object AppTileFactory {
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
-        if (lp.badgeMode != "none" && isFav) {
+        if (lp.badgeMode != "none") {
             badge.visibility = View.VISIBLE
             badge.text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
             badge.setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
