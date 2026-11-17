@@ -1,213 +1,327 @@
 package com.shreenivas.tvhome.panels
 
+import android.animation.LayoutTransition
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.shreenivas.tvhome.LauncherPreferences
 import com.shreenivas.tvhome.LauncherUtils
-import com.shreenivas.tvhome.ui.LauncherBackground
+import com.shreenivas.tvhome.MotionEngine
+import com.shreenivas.tvhome.ui.TileThemePalette
 
-object WallpaperEditorPanel {
+object CustomizeMenuBuilder {
+    private var lastFocusedTag = ""
+    private var activeCloseDrawerRef: (() -> Unit)? = null
+
+    fun isSubMenuOpen(): Boolean = false
+
+    fun closeSubMenuWithAnimation(onClosedCallback: (() -> Unit)? = null) {
+        onClosedCallback?.invoke()
+    }
+
+    fun closeSubMenuAndNavigate(moveDown: Boolean) {}
 
     fun build(
-        ctx: Context,
-        panel: LinearLayout,
-        lp: LauncherPreferences,
-        onLiveUpdate: () -> Unit,
-        onPickNewImage: () -> Unit,
-        onDone: () -> Unit
+        ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLiveRefresh: () -> Unit,
+        onRebuildPanel: () -> Unit, onEditProfile: () -> Unit, onOpenWallpaper: () -> Unit,
+        onOpenHiddenRibbon: () -> Unit, onBackToApps: () -> Unit
     ) {
-        val hasCustomImage = lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null
-        val curMode = lp.liveWallpaperMode
+        activeCloseDrawerRef = onBackToApps
+        (panel.findFocus()?.tag as? String)?.let { lastFocusedTag = it }
 
-        addSection(ctx, panel, "SMART DYNAMIC MODES")
-        val autoRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        autoRow.addView(
-            makeVisualCard(
-                ctx, lp, "✨", "Smart Auto", "Time + Weather",
-                intArrayOf(Color.rgb(52, 128, 225), Color.rgb(155, 72, 185)),
-                !hasCustomImage && curMode == LauncherBackground.MODE_SMART
-            ) {
-                lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
-                lp.liveWallpaperMode = LauncherBackground.MODE_SMART
-                onLiveUpdate()
-                rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
-            },
-            LinearLayout.LayoutParams(0, dp(ctx, 56), 1f).apply { rightMargin = dp(ctx, 7) }
-        )
-        autoRow.addView(
-            makeVisualCard(
-                ctx, lp, "🕒", "Time Flow", "Day to Night",
-                intArrayOf(Color.rgb(235, 138, 72), Color.rgb(42, 62, 135)),
-                !hasCustomImage && curMode == LauncherBackground.MODE_AUTO_TIME
-            ) {
-                lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
-                lp.liveWallpaperMode = LauncherBackground.MODE_AUTO_TIME
-                onLiveUpdate()
-                rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
-            },
-            LinearLayout.LayoutParams(0, dp(ctx, 56), 1f)
-        )
-        panel.addView(autoRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
+        panel.layoutTransition = LayoutTransition().apply {
+            setDuration(220L)
+            enableTransitionType(LayoutTransition.CHANGING)
+            setInterpolator(LayoutTransition.CHANGING, LauncherUtils.FLUID_SPRING)
+        }
+        panel.removeAllViews()
 
-        addSection(ctx, panel, "LIVE CANVAS SCENES")
-        val sceneSwatches = listOf(
-            intArrayOf(Color.rgb(125, 195, 255), Color.rgb(245, 198, 165)),
-            intArrayOf(Color.rgb(185, 165, 245), Color.rgb(155, 225, 205)),
-            intArrayOf(Color.rgb(195, 68, 118), Color.rgb(255, 152, 78)),
-            intArrayOf(Color.rgb(12, 115, 152), Color.rgb(38, 192, 172)),
-            intArrayOf(Color.rgb(24, 58, 92), Color.rgb(65, 135, 175)),
-            intArrayOf(Color.rgb(16, 24, 54), Color.rgb(48, 64, 125))
-        )
-        val sceneIcons = listOf("☀️", "🌸", "🌇", "🌊", "🌧️", "🌙")
+        addHeader(ctx, panel, "PROFILE & VISIBILITY")
+        val topRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val profCard = makeActionChip(ctx, "👤", lp.userName, "Edit Profile", Color.rgb(68, 138, 255), lp.accentColor, "chip_profile") {
+            lastFocusedTag = "chip_profile"; onEditProfile()
+        }
+        val hiddenCount = lp.getHiddenApps().size
+        val hidSub = if (hiddenCount == 0) "None Hidden" else "$hiddenCount Hidden"
+        val hidCard = makeActionChip(ctx, "👁", "Hidden Apps", hidSub, Color.rgb(255, 105, 130), lp.accentColor, "chip_hidden") {
+            lastFocusedTag = "chip_hidden"
+            if (hiddenCount == 0) {
+                Toast.makeText(ctx, "No hidden apps right now", Toast.LENGTH_SHORT).show()
+            } else {
+                onBackToApps()
+                onOpenHiddenRibbon()
+            }
+        }
+        topRow.addView(profCard, LinearLayout.LayoutParams(0, dp(ctx, 50), 1f).apply { rightMargin = dp(ctx, 6) })
+        topRow.addView(hidCard, LinearLayout.LayoutParams(0, dp(ctx, 50), 1f))
+        panel.addView(topRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
 
-        for (i in LauncherBackground.MANUAL_NAMES.indices step 2) {
+        addHeader(ctx, panel, "TILE SIZE")
+        addSegmentedRow(
+            ctx, panel, lp, "size",
+            listOf("Small", "Medium", "Large"),
+            listOf("small", "medium", "large"),
+            lp.tileSize,
+            onSelect = { v -> lp.tileSize = v; onLiveRefresh(); onRebuildPanel() }
+        )
+
+        addHeader(ctx, panel, "STAGE & PANEL WIDTH")
+        addSegmentedRow(
+            ctx, panel, lp, "width",
+            listOf("20%", "25%", "30%", "35%", "40%"),
+            listOf("20", "25", "30", "35", "40"),
+            lp.panelWidthPct.toString(),
+            onSelect = { v -> lp.panelWidthPct = v.toInt(); onLiveRefresh(); onRebuildPanel() }
+        )
+
+        addHeader(ctx, panel, "TILE SHAPE & BADGE")
+        addSegmentedRow(
+            ctx, panel, lp, "shape",
+            listOf("▢ Squircle", "◯ Circle", "♥ Heart", "▪ Classic"),
+            listOf("squircle", "circle", "heart", "classic"),
+            lp.tileShape,
+            onSelect = { v -> lp.tileShape = v; onLiveRefresh(); onRebuildPanel() }
+        )
+        addSegmentedRow(
+            ctx, panel, lp, "badge",
+            listOf("None", "♥ Heart", "● Blue", "★ Star"),
+            listOf("none", "heart", "blue", "star"),
+            lp.badgeMode,
+            onSelect = { v -> lp.badgeMode = v; onLiveRefresh(); onRebuildPanel() }
+        )
+        addHeader(ctx, panel, "GLOBAL MOTION STYLE (OK TO APPLY)")
+        addSegmentedRow(
+            ctx, panel, lp, "motion",
+            MotionEngine.NAMES,
+            MotionEngine.KEYS,
+            lp.motionStyle,
+            isMotionRow = true,
+            onSelect = { v ->
+                lp.motionStyle = v
+                onLiveRefresh()
+                onBackToApps()
+            }
+        )
+
+        addHeader(ctx, panel, "ACCENT AURA")
+        val accentKeys = listOf("royal", "magenta", "purple", "emerald", "sunset")
+        val accentLabels = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
+        val accentRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        accentKeys.forEachIndexed { idx, key ->
+            val col = lp.getAccentColorValue(key)
+            val isSel = lp.accentColor == col
+            val tagStr = "acc_$key"
+            val swatch = LinearLayout(ctx).apply {
+                tag = tagStr
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(ctx, 2), dp(ctx, 6), dp(ctx, 2), dp(ctx, 6))
+                isFocusable = true
+                background = pillBg(ctx, isSel, false, col)
+                setOnFocusChangeListener { v, f ->
+                    LauncherUtils.applyFocusSpring(v, f, 1.06f, 3f)
+                    v.background = pillBg(ctx, isSel, f, col)
+                }
+                setOnClickListener {
+                    lastFocusedTag = tagStr
+                    lp.accentColor = col
+                    lp.accentName = cap(key)
+                    onLiveRefresh()
+                    onRebuildPanel()
+                }
+            }
+            val dot = View(ctx).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(col)
+                    setStroke(dp(ctx, 1), Color.WHITE)
+                }
+            }
+            swatch.addView(dot, LinearLayout.LayoutParams(dp(ctx, 14), dp(ctx, 14)).apply { bottomMargin = dp(ctx, 3) })
+            swatch.addView(TextView(ctx).apply {
+                text = accentLabels[idx]; textSize = 8f; typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE); gravity = Gravity.CENTER; isSingleLine = true
+            })
+            accentRow.addView(swatch, LinearLayout.LayoutParams(0, dp(ctx, 44), 1f).apply {
+                if (idx < accentKeys.lastIndex) rightMargin = dp(ctx, 4)
+            })
+        }
+        panel.addView(accentRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
+
+        addHeader(ctx, panel, "LAUNCHER THEMES")
+        val curTheme = lp.tileColor
+        val themeGrads = listOf(
+            intArrayOf(Color.argb(95, 165, 210, 255), Color.argb(45, 95, 145, 220)),
+            intArrayOf(Color.argb(120, 22, 32, 65), Color.argb(155, 12, 18, 38)),
+            intArrayOf(Color.argb(115, 25, 95, 195), Color.argb(75, 12, 52, 130)),
+            intArrayOf(Color.argb(115, 125, 48, 195), Color.argb(75, 65, 22, 125)),
+            intArrayOf(Color.argb(115, 22, 145, 105), Color.argb(75, 12, 85, 65)),
+            intArrayOf(Color.argb(115, 215, 85, 58), Color.argb(75, 145, 38, 65))
+        )
+
+        for (i in TileThemePalette.NAMES.indices step 2) {
             val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-            for (j in i until minOf(i + 2, LauncherBackground.MANUAL_NAMES.size)) {
-                val key = LauncherBackground.MANUAL_KEYS[j]
-                val sel = !hasCustomImage && curMode == key
-                val card = makeVisualCard(
-                    ctx, lp, sceneIcons[j], LauncherBackground.MANUAL_NAMES[j],
-                    if (sel) "Active" else "Tap to set", sceneSwatches[j], sel
-                ) {
-                    lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
-                    lp.liveWallpaperMode = key
-                    onLiveUpdate()
-                    rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
+            for (j in i until minOf(i + 2, TileThemePalette.NAMES.size)) {
+                val key = TileThemePalette.KEYS[j]
+                val sel = key == curTheme
+                val tagStr = "theme_$key"
+                val card = LinearLayout(ctx).apply {
+                    tag = tagStr
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(ctx, 9), dp(ctx, 6), dp(ctx, 9), dp(ctx, 6)); isFocusable = true
+                    background = themeCardBg(ctx, sel, false, themeGrads[j], lp.accentColor)
+                    setOnFocusChangeListener { v, f ->
+                        LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f)
+                        v.background = themeCardBg(ctx, sel, f, themeGrads[j], lp.accentColor)
+                    }
+                    setOnClickListener {
+                        lastFocusedTag = tagStr; lp.tileColor = key; onLiveRefresh(); onRebuildPanel()
+                    }
                 }
-                val p = LinearLayout.LayoutParams(0, dp(ctx, 52), 1f).apply {
-                    if (j == i) rightMargin = dp(ctx, 7)
-                }
-                row.addView(card, p)
+                val mid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+                mid.addView(TextView(ctx).apply { text = TileThemePalette.NAMES[j]; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); isSingleLine = true })
+                mid.addView(TextView(ctx).apply { text = TileThemePalette.SUBTITLES[j]; textSize = 7.5f; setTextColor(Color.argb(200, 225, 240, 255)); isSingleLine = true })
+                card.addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
+                if (sel) card.addView(TextView(ctx).apply { text = "✓"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(lp.accentColor) })
+
+                row.addView(card, LinearLayout.LayoutParams(0, dp(ctx, 44), 1f).apply {
+                    if (j == i) rightMargin = dp(ctx, 6)
+                })
             }
-            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 7) })
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
         }
-
-        addSection(ctx, panel, "CUSTOM GALLERY PHOTO")
-        val pickCard = makeVisualCard(
-            ctx, lp, "🖼", "Choose Photo from Storage",
-            if (hasCustomImage) "Custom photo active • Tap to change" else "Select 4K / HD image",
-            intArrayOf(Color.argb(85, 255, 255, 255), Color.argb(38, 255, 255, 255)),
-            hasCustomImage
-        ) { onPickNewImage() }
-        panel.addView(pickCard, LinearLayout.LayoutParams(-1, dp(ctx, 52)).apply { bottomMargin = dp(ctx, 8) })
-                if (hasCustomImage) {
-            val auraOn = lp.photoWeatherAura
-            val auraCard = makeVisualCard(
-                ctx, lp, if (auraOn) "🌦️" else "🚫",
-                "Subtle Corner Weather Aura",
-                if (auraOn) "Enabled • Soft edge glow (Tap to turn Off)" else "Disabled • Pure photo (Tap to turn On)",
-                intArrayOf(Color.argb(80, 68, 165, 235), Color.argb(40, 32, 52, 95)),
-                auraOn
-            ) {
-                lp.photoWeatherAura = !auraOn
-                onLiveUpdate()
-                rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
-            }
-            panel.addView(auraCard, LinearLayout.LayoutParams(-1, dp(ctx, 52)).apply { bottomMargin = dp(ctx, 8) })
-
-            addSection(ctx, panel, "PHOTO FIT, ZOOM & POSITION")
-            addPillRow(ctx, panel, lp, listOf("Fit", "Fill W", "Fill H")) { idx ->
-                val modes = listOf("fit", "width", "height")
-                lp.prefs.edit().putString("wp_scale_mode", modes[idx]).apply()
-                onLiveUpdate()
-            }
-            addPillRow(ctx, panel, lp, listOf("Zoom -", "Reset", "Zoom +")) { idx ->
-                val sp = lp.prefs
-                var z = sp.getFloat("wp_zoom", 1.0f)
-                z = when (idx) { 0 -> maxOf(1.0f, z - 0.1f); 1 -> 1.08f; else -> minOf(2.2f, z + 0.1f) }
-                sp.edit().putFloat("wp_zoom", z).apply()
-                onLiveUpdate()
-            }
-            addPillRow(ctx, panel, lp, listOf("⬅", "⬆", "⬇", "➡")) { idx ->
-                val sp = lp.prefs
-                var ox = sp.getInt("wp_offset_x", 0); var oy = sp.getInt("wp_offset_y", 0)
-                val step = dp(ctx, 24)
-                when (idx) { 0 -> ox -= step; 1 -> oy -= step; 2 -> oy += step; else -> ox += step }
-                sp.edit().putInt("wp_offset_x", ox).putInt("wp_offset_y", oy).apply()
-                onLiveUpdate()
-            }
+                addHeader(ctx, panel, "WALLPAPER & AMBIENT STAGE")
+        val wpCard = makeActionChip(ctx, "🖼", "Wallpaper Studio", "Dynamic weather, time & gallery", Color.rgb(46, 196, 182), lp.accentColor, "card_wallpaper") {
+            lastFocusedTag = "card_wallpaper"; onOpenWallpaper()
         }
+        panel.addView(wpCard, LinearLayout.LayoutParams(-1, dp(ctx, 50)).apply { bottomMargin = dp(ctx, 10) })
 
-        val donePill = TextView(ctx).apply {
-            text = "✓  Apply & Back"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
+        val backBtn = TextView(ctx).apply {
+            tag = "btn_back_apps"; text = "✓  Done & Close"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
             background = pillBg(ctx, false, true, lp.accentColor)
             setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f); v.background = pillBg(ctx, f, true, lp.accentColor) }
-            setOnClickListener { onDone() }
+            setOnClickListener { activeCloseDrawerRef?.invoke() }
         }
-        panel.addView(donePill, LinearLayout.LayoutParams(-1, dp(ctx, 42)).apply { topMargin = dp(ctx, 10); bottomMargin = dp(ctx, 24) })
+        panel.addView(backBtn, LinearLayout.LayoutParams(-1, dp(ctx, 40)).apply { bottomMargin = dp(ctx, 24) })
+
+        if (lastFocusedTag.isNotEmpty()) panel.findViewWithTag<View>(lastFocusedTag)?.requestFocus()
     }
 
-    private fun rebuild(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLive: () -> Unit, onPick: () -> Unit, onDone: () -> Unit) {
-        panel.removeAllViews()
-        build(ctx, panel, lp, onLive, onPick, onDone)
+    private fun addSegmentedRow(
+        ctx: Context, panel: LinearLayout, lp: LauncherPreferences, groupKey: String,
+        labels: List<String>, values: List<String>, currentVal: String,
+        isMotionRow: Boolean = false, onSelect: (String) -> Unit
+    ) {
+        val bar = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(42, 10, 16, 38))
+                cornerRadius = LauncherUtils.dpF(ctx, 12f)
+                setStroke(dp(ctx, 1), Color.argb(55, 255, 255, 255))
+            }
+        }
+        labels.forEachIndexed { idx, lbl ->
+            val v = values[idx]
+            val isSel = v == currentVal
+            val tagStr = "seg_${groupKey}_$v"
+            val pill = TextView(ctx).apply {
+                tag = tagStr
+                text = lbl
+                textSize = if (labels.size >= 5) 8.2f else 9f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                isSingleLine = true
+                ellipsize = TextUtils.TruncateAt.END
+                setPadding(dp(ctx, 2), dp(ctx, 7), dp(ctx, 2), dp(ctx, 7))
+                isFocusable = true
+                background = pillBg(ctx, isSel, false, lp.accentColor)
+                setOnFocusChangeListener { vw, f ->
+                    MotionEngine.animateFocus(vw, f, if (isMotionRow) v else lp.motionStyle, 1.06f, 3f)
+                    vw.background = pillBg(ctx, isSel, f, lp.accentColor)
+                }
+                setOnClickListener {
+                    lastFocusedTag = tagStr
+                    onSelect(v)
+                }
+            }
+            bar.addView(pill, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (idx < labels.lastIndex) rightMargin = dp(ctx, 3)
+            })
+        }
+        panel.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 7) })
     }
 
-    private fun makeVisualCard(
-        ctx: Context, lp: LauncherPreferences, icon: String, title: String, sub: String,
-        gradColors: IntArray, selected: Boolean, onClick: () -> Unit
+    private fun makeActionChip(
+        ctx: Context, icon: String, title: String, sub: String,
+        iconTint: Int, accent: Int, tagStr: String, onClick: () -> Unit
     ) = LinearLayout(ctx).apply {
+        tag = tagStr
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(ctx, 10), dp(ctx, 6), dp(ctx, 10), dp(ctx, 6)); isFocusable = true
-        background = cardBg(ctx, false, selected, gradColors, lp.accentColor)
+        setPadding(dp(ctx, 8), dp(ctx, 6), dp(ctx, 8), dp(ctx, 6)); isFocusable = true
+        background = pillBg(ctx, false, false, accent)
         setOnFocusChangeListener { v, f ->
-            LauncherUtils.applyFocusSpring(v, f, 1.03f, 4f)
-            v.background = cardBg(ctx, f, selected, gradColors, lp.accentColor)
+            LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f)
+            v.background = pillBg(ctx, false, f, accent)
         }
         setOnClickListener { onClick() }
 
-        addView(TextView(ctx).apply { text = icon; textSize = 15f; setPadding(0, 0, dp(ctx, 8), 0) })
-        val mid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        mid.addView(TextView(ctx).apply { text = title; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); isSingleLine = true })
-        mid.addView(TextView(ctx).apply { text = sub; textSize = 7.8f; setTextColor(Color.argb(210, 235, 245, 255)); isSingleLine = true })
-        addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
-        if (selected) addView(TextView(ctx).apply { text = "✓"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
-    }
-
-    private fun addPillRow(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, labels: List<String>, onClick: (Int) -> Unit) {
-        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        labels.forEachIndexed { i, txt ->
-            val pill = TextView(ctx).apply {
-                text = txt; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
-                background = pillBg(ctx, false, false, lp.accentColor)
-                setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.04f, 3f); v.background = pillBg(ctx, f, false, lp.accentColor) }
-                setOnClickListener { onClick(i) }
+        val badge = TextView(ctx).apply {
+            text = icon; textSize = 12f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(LauncherUtils.withAlpha(iconTint, 145))
+                cornerRadius = LauncherUtils.dpF(ctx, 9f)
             }
-            row.addView(pill, LinearLayout.LayoutParams(0, dp(ctx, 34), 1f).apply { if (i < labels.lastIndex) rightMargin = dp(ctx, 5) })
         }
-        panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
+        addView(badge, LinearLayout.LayoutParams(dp(ctx, 28), dp(ctx, 28)).apply { rightMargin = dp(ctx, 7) })
+        val mid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        mid.addView(TextView(ctx).apply { text = title; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); isSingleLine = true; ellipsize = TextUtils.TruncateAt.END })
+        mid.addView(TextView(ctx).apply { text = sub; textSize = 7.8f; setTextColor(Color.argb(195, 210, 230, 250)); isSingleLine = true; ellipsize = TextUtils.TruncateAt.END })
+        addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
     }
 
-    private fun cardBg(ctx: Context, focused: Boolean, selected: Boolean, colors: IntArray, accent: Int) = GradientDrawable(
-        GradientDrawable.Orientation.TL_BR, colors
-    ).apply {
-        cornerRadius = LauncherUtils.dpF(ctx, 14f)
-        setStroke(dp(ctx, if (focused || selected) 2 else 1), when {
-            focused -> Color.WHITE
-            selected -> accent
-            else -> Color.argb(85, 255, 255, 255)
+    private fun pillBg(ctx: Context, sel: Boolean, foc: Boolean, accent: Int) = GradientDrawable().apply {
+        setColor(when {
+            foc -> Color.argb(125, 255, 255, 255)
+            sel -> LauncherUtils.withAlpha(accent, 130)
+            else -> Color.argb(32, 255, 255, 255)
+        })
+        cornerRadius = LauncherUtils.dpF(ctx, 10f)
+        setStroke(dp(ctx, if (foc || sel) 2 else 1), when {
+            foc -> Color.WHITE
+            sel -> accent
+            else -> Color.argb(50, 255, 255, 255)
         })
     }
 
-    private fun pillBg(ctx: Context, focused: Boolean, selected: Boolean, accent: Int) = GradientDrawable().apply {
-        setColor(when { focused -> Color.argb(120, 255, 255, 255); selected -> Color.argb(85, 92, 168, 255); else -> Color.argb(45, 255, 255, 255) })
+    private fun themeCardBg(ctx: Context, sel: Boolean, foc: Boolean, grad: IntArray, accent: Int) = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR, grad
+    ).apply {
         cornerRadius = LauncherUtils.dpF(ctx, 12f)
-        setStroke(dp(ctx, if (focused || selected) 2 else 1), if (focused) Color.WHITE else accent)
+        setStroke(dp(ctx, if (foc || sel) 2 else 1), when {
+            foc -> Color.WHITE
+            sel -> accent
+            else -> Color.argb(65, 255, 255, 255)
+        })
     }
 
-    private fun addSection(ctx: Context, panel: LinearLayout, label: String) {
-        val t = TextView(ctx).apply {
-            text = label; textSize = 8.5f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.08f
-            setTextColor(Color.rgb(110, 215, 255))
-        }
-        panel.addView(t, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 8); bottomMargin = dp(ctx, 5) })
-    }
+    private fun addHeader(ctx: Context, panel: LinearLayout, txt: String) = panel.addView(
+        TextView(ctx).apply {
+            text = txt; textSize = 8.5f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.08f
+            setTextColor(Color.argb(200, 195, 222, 250))
+        },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 6); bottomMargin = dp(ctx, 4) }
+    )
 
-    private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
+    private fun cap(s: String): String = s.replaceFirstChar { it.uppercase() }
+    private fun dp(ctx: Context, v: Int): Int = LauncherUtils.dp(ctx, v)
 }
