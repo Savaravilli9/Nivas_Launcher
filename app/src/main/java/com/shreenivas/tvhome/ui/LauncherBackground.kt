@@ -292,7 +292,7 @@ object LauncherBackground {
                 totalMins in 960..1139 -> Triple(sunset, night, (totalMins - 960) / 180f)
                 else -> Triple(night, night, 0f)
             }
-            return intArrayOf(blendColor(from, to, ratio), blendColor(from, to, ratio), blendColor(from, to, ratio))
+                return intArrayOf(blendColor(from[0], to[0], ratio), blendColor(from[1], to[1], ratio), blendColor(from[2], to[2], ratio))
         }
 
         private fun buildShaders(w: Int, h: Int) {
