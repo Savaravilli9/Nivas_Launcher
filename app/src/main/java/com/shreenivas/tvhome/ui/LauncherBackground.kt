@@ -292,7 +292,7 @@ object LauncherBackground {
                 totalMins in 960..1139 -> Triple(sunset, night, (totalMins - 960) / 180f)
                 else -> Triple(night, night, 0f)
             }
-                return intArrayOf(blendColor(from[0], to[0], ratio), blendColor(from[1], to[1], ratio), blendColor(from[2], to[2], ratio))
+            return intArrayOf(blendColor(from[0], to[0], ratio), blendColor(from[1], to[1], ratio), blendColor(from[2], to[2], ratio))
         }
 
         private fun buildShaders(w: Int, h: Int) {
@@ -304,7 +304,8 @@ object LauncherBackground {
             if (isAuto && activeEffectiveMode != MODE_RAIN) {
                 skyPaint.shader = LinearGradient(0f, 0f, wf, hf, getAutoSkyPalette(), floatArrayOf(0f, 0.52f, 1f), Shader.TileMode.CLAMP)
             }
-                        when (activeEffectiveMode) {
+
+            when (activeEffectiveMode) {
                 MODE_MORNING -> {
                     if (!isAuto) skyPaint.shader = LinearGradient(0f, 0f, wf, hf, intArrayOf(Color.rgb(168, 218, 255), Color.rgb(225, 240, 255), Color.rgb(255, 224, 198)), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
                     orb1Paint.shader = RadialGradient(wf * 0.18f, hf * 0.16f, wf * 0.55f, intArrayOf(Color.argb(210, 255, 242, 175), Color.argb(70, 255, 215, 130), Color.TRANSPARENT), floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP)
@@ -375,7 +376,7 @@ object LauncherBackground {
                         starPath.moveTo(sx, sy - r); starPath.lineTo(sx + inner, sy - inner); starPath.lineTo(sx + r, sy)
                         starPath.lineTo(sx + inner, sy + inner); starPath.lineTo(sx, sy + r); starPath.lineTo(sx - inner, sy + inner)
                         starPath.lineTo(sx - r, sy); starPath.lineTo(sx - inner, sy - inner); starPath.close()
-                        canvas.drawPath(starPath, particlePaint)
+                                                canvas.drawPath(starPath, particlePaint)
                     }
                     MODE_RAIN -> {
                         val dropY = ((s.yRatio + (phase * 0.15f * s.speed)) % 1.0f) * h
