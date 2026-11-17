@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -40,6 +41,83 @@ object AppGridManager {
             }
             addView(TextView(ctx).apply { tag = "count_tv"; text = "0 Apps"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.argb(220, 215, 235, 255)); setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4)); background = badgeBg(ctx, false) })
         }
+    }
+
+    fun populateHiddenRibbon(
+        ctx: Context, lp: LauncherPreferences, hiddenSection: LinearLayout, hiddenRow: LinearLayout,
+        hiddenCount: TextView, onUnhideApp: (String, String) -> Unit
+    ) {
+        val pm = ctx.packageManager
+        val hiddenSet = lp.getHiddenApps()
+        val hiddenApps = getInstalledApps(pm).filter { hiddenSet.contains(it.activityInfo.packageName) }
+
+        if (hiddenApps.isEmpty()) {
+            hiddenSection.visibility = View.GONE
+            hiddenRow.removeAllViews()
+            return
+        }
+
+        hiddenSection.visibility = View.VISIBLE
+        hiddenCount.text = "${hiddenApps.size} Hidden • Select for Options"
+
+        val screenW = ctx.resources.displayMetrics.widthPixels
+        val sidePad = dp(ctx, 64)
+        val gap = dp(ctx, 12)
+        val baseAvailableW = screenW - sidePad
+        val baseCellW = (baseAvailableW - (gap * (lp.columns - 1))) / lp.columns
+        val scale = when (lp.tileSize) { "small" -> 0.75f; "large" -> 0.96f; else -> 0.85f }
+        val tileW = (baseCellW * scale).toInt()
+        val tileH = (tileW * 0.85f).toInt()
+        val sideMargin = maxOf(0, ((baseAvailableW - (gap * (lp.columns - 1))) / lp.columns - tileW) / 2)
+
+        hiddenRow.setPadding(sideMargin, 0, sideMargin, 0)
+        hiddenRow.removeAllViews()
+
+        val dummyActions = object : AppTileFactory.TileActions {
+            override fun onToggleFavorite(pkg: String, label: String) {}
+            override fun onMoveFavorite(pkg: String, delta: Int) {}
+            override fun onHideApp(pkg: String, label: String) {}
+        }
+
+        hiddenApps.forEachIndexed { idx, info ->
+            val pkg = info.activityInfo.packageName
+            val label = info.loadLabel(pm).toString()
+            val openHiddenOptions = {
+                AppActionDialog.show(
+                    ctx = ctx,
+                    pkg = pkg,
+                    appName = label,
+                    isFav = false,
+                    canMoveLeft = false,
+                    canMoveRight = false,
+                    accent = lp.accentColor,
+                    isHiddenMode = true,
+                    onHideOrUnhideApp = { onUnhideApp(pkg, label) }
+                )
+            }
+            val tile = AppTileFactory.create(
+                ctx, pm, lp, info, isFavRow = false, isFav = false,
+                canMoveLeft = false, canMoveRight = false,
+                w = tileW, h = tileH, actions = dummyActions
+            ).apply {
+                tag = "hidden_$pkg"
+                setOnClickListener { openHiddenOptions() }
+                setOnLongClickListener { openHiddenOptions(); true }
+                setOnKeyListener { _, keyCode, event ->
+                    if (event.action == KeyEvent.ACTION_DOWN &&
+                        (keyCode == KeyEvent.KEYCODE_MENU || (keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.isLongPress))
+                    ) {
+                        openHiddenOptions()
+                        true
+                    } else false
+                }
+            }
+            val p = LinearLayout.LayoutParams(tileW, tileH).apply {
+                if (idx < hiddenApps.lastIndex) rightMargin = gap
+            }
+            hiddenRow.addView(tile, p)
+        }
+        hiddenRow.getChildAt(0)?.post { hiddenRow.getChildAt(0)?.requestFocus() }
     }
 
     fun populate(
