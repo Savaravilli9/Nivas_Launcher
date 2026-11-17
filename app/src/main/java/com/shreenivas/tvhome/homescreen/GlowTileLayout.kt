@@ -46,7 +46,10 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         accentColor = color
         tileShape = shape ?: "squircle"
         this.tileKey = themeKey ?: "frost"
-        updateShaders(width.toFloat(), height.toFloat())
+        if (width > 0 && height > 0) {
+            buildShapePath(width.toFloat(), height.toFloat())
+            updateShaders(width.toFloat(), height.toFloat())
+        }
         invalidate()
     }
 

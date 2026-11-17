@@ -1,15 +1,5 @@
 package com.shreenivas.tvhome
 
-import com.shreenivas.tvhome.homescreen.AppGridManager
-import com.shreenivas.tvhome.homescreen.AppTileFactory
-import com.shreenivas.tvhome.panels.CustomizeMenuBuilder
-import com.shreenivas.tvhome.panels.DrawerFocusTrap
-import com.shreenivas.tvhome.panels.SideControlDrawer
-import com.shreenivas.tvhome.services.NightNudgeReceiver
-import com.shreenivas.tvhome.ui.LauncherBackground
-import com.shreenivas.tvhome.ui.TopNavBar
-import com.shreenivas.tvhome.LauncherUtils
-
 import android.Manifest
 import android.animation.LayoutTransition
 import android.app.Activity
@@ -37,6 +27,15 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.shreenivas.tvhome.homescreen.AppGridManager
+import com.shreenivas.tvhome.homescreen.AppTileFactory
+import com.shreenivas.tvhome.panels.CustomizeMenuBuilder
+import com.shreenivas.tvhome.panels.DrawerFocusTrap
+import com.shreenivas.tvhome.panels.SideControlDrawer
+import com.shreenivas.tvhome.services.NightNudgeReceiver
+import com.shreenivas.tvhome.ui.AmbientStageWidget
+import com.shreenivas.tvhome.ui.LauncherBackground
+import com.shreenivas.tvhome.ui.TopNavBar
 
 class MainActivity : Activity() {
     companion object {
@@ -58,6 +57,7 @@ class MainActivity : Activity() {
     private lateinit var drawerScrim: View
     private lateinit var lp: LauncherPreferences
     private lateinit var sideDrawer: SideControlDrawer
+    private lateinit var ambientStage: AmbientStageWidget
 
     private val pkgReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -99,15 +99,14 @@ class MainActivity : Activity() {
             registerReceiver(pkgReceiver, filter)
         }
     }
-
-    private fun checkPermissionsWithExplanation() {
+        private fun checkPermissionsWithExplanation() {
         val needLoc = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
         val needOverlay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)
         if (!needLoc && !needOverlay) return
 
         val msg = buildString {
             append("To give you the best TV experience, Shree TV Home needs:\n\n")
-            if (needLoc) append("• Location Access: Required by Android TV to display your connected Wi-Fi network name.\n\n")
+            if (needLoc) append("• Location Access: Required by Android TV to display your connected Wi-Fi network name & local weather.\n\n")
             if (needOverlay) append("• Display Over Other Apps: Shows gentle bedtime reminder bubbles at night while watching videos.")
         }
 
@@ -130,6 +129,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::appGrid.isInitialized) refreshApps(!sideDrawer.isOpen)
+        if (::ambientStage.isInitialized) ambientStage.triggerWeatherRefresh(false)
     }
 
     @Deprecated("Deprecated in Java")
@@ -147,6 +147,7 @@ class MainActivity : Activity() {
             super.onBackPressed()
         }
     }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar)) {
             return true
@@ -184,7 +185,7 @@ class MainActivity : Activity() {
         LauncherBackground.apply(this, rootLayout, lp)
 
         mainPage = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(32), dp(14), dp(32), dp(12))
+            orientation = LinearLayout.VERTICAL; setPadding(dp(28), dp(14), dp(28), dp(12))
         }
         rootLayout.addView(mainPage, FrameLayout.LayoutParams(-1, -1))
 
@@ -201,13 +202,13 @@ class MainActivity : Activity() {
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
         mainPage.addView(topNavBar)
-
-        val contentArea = FrameLayout(this)
+                val contentArea = FrameLayout(this)
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
+        val rightStageW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         val mainBody = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(4), 0, 0)
+            setPadding(0, dp(4), rightStageW + dp(16), 0)
             layoutTransition = LayoutTransition().apply {
                 setDuration(320L)
                 enableTransitionType(LayoutTransition.CHANGING)
@@ -216,7 +217,6 @@ class MainActivity : Activity() {
         }
         contentArea.addView(mainBody, FrameLayout.LayoutParams(-1, -1))
 
-        // HIDDEN APPS RIBBON (Opens on demand like Favorites)
         hiddenSection = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
@@ -255,7 +255,6 @@ class MainActivity : Activity() {
         hiddenSection.addView(hiddenHScroll)
         mainBody.addView(hiddenSection, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
 
-        // FAVORITES RIBBON
         favSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val favHeader = AppGridManager.createHeader(this, "♥  FAVORITES & QUICK ACCESS", true)
         favCount = favHeader.findViewWithTag("count_tv")
@@ -290,7 +289,7 @@ class MainActivity : Activity() {
         scrollContent.addView(appGrid); scroll.addView(scrollContent)
         mainBody.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        setupRightDrawer(contentArea)
+        setupRightDrawer(contentArea, mainBody)
         val nudgeView = topNavBar.createFloatingNudgeView()
         rootLayout.addView(nudgeView, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { topMargin = dp(52); leftMargin = dp(235) })
         setContentView(rootLayout)
@@ -303,45 +302,34 @@ class MainActivity : Activity() {
             lp.setHiddenApps(updated)
             Toast.makeText(this, "$label restored to Home", Toast.LENGTH_SHORT).show()
             refreshApps(false, pkg)
-            if (updated.isEmpty()) {
-                closeHiddenRibbon(pkg)
-            } else {
-                openHiddenRibbon()
-            }
+            if (updated.isEmpty()) closeHiddenRibbon(pkg) else openHiddenRibbon()
         }
         if (hiddenSection.visibility == View.VISIBLE) {
-            hiddenSection.alpha = 0f
-            hiddenSection.scaleY = 0.90f
-            hiddenSection.animate()
-                .alpha(1f).scaleY(1f)
-                .setDuration(320L)
-                .setInterpolator(LauncherUtils.FLUID_SPRING)
-                .start()
+            hiddenSection.alpha = 0f; hiddenSection.scaleY = 0.90f
+            hiddenSection.animate().alpha(1f).scaleY(1f).setDuration(320L).setInterpolator(LauncherUtils.FLUID_SPRING).start()
         }
     }
 
     private fun closeHiddenRibbon(focusPkg: String? = null) {
         if (hiddenSection.visibility != View.VISIBLE) return
-        hiddenSection.animate()
-            .alpha(0f).scaleY(0.90f)
-            .setDuration(220L)
-            .setInterpolator(LauncherUtils.SILKY_EASE)
+        hiddenSection.animate().alpha(0f).scaleY(0.90f).setDuration(220L).setInterpolator(LauncherUtils.SILKY_EASE)
             .withEndAction {
-                hiddenSection.visibility = View.GONE
-                hiddenSection.alpha = 1f
-                hiddenSection.scaleY = 1f
+                hiddenSection.visibility = View.GONE; hiddenSection.alpha = 1f; hiddenSection.scaleY = 1f
                 refreshApps(true, focusPkg)
             }.start()
     }
 
-    private fun setupRightDrawer(contentArea: FrameLayout) {
+    private fun setupRightDrawer(contentArea: FrameLayout, mainBody: LinearLayout) {
+        val drawerW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
+        ambientStage = AmbientStageWidget(this, lp)
+        contentArea.addView(ambientStage, FrameLayout.LayoutParams(drawerW, -2, Gravity.END or Gravity.CENTER_VERTICAL))
+
         drawerScrim = View(this).apply {
-            setBackgroundColor(0x55000000); visibility = View.GONE; isClickable = true
+            setBackgroundColor(0x33000000); visibility = View.GONE; isClickable = true
             setOnClickListener { sideDrawer.close() }
         }
         contentArea.addView(drawerScrim, FrameLayout.LayoutParams(-1, -1))
 
-        val drawerW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
@@ -349,21 +337,26 @@ class MainActivity : Activity() {
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
-            ::applyLiveVisuals, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
+            { applyLiveVisuals(mainBody) }, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
         )
+        sideDrawer.attachStageWidget(ambientStage)
     }
 
-    private fun applyLiveVisuals() {
+    private fun applyLiveVisuals(mainBody: LinearLayout) {
         topNavBar.refreshGreeting()
         LauncherBackground.updateThemeAndAccent(rootLayout, lp)
 
         val newW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
-        val currentW = drawerLayout.layoutParams.width
+        mainBody.setPadding(0, dp(4), newW + dp(16), 0)
+        ambientStage.layoutParams.width = newW
+        ambientStage.refreshStyle()
+        ambientStage.triggerWeatherRefresh(true)
 
+        val currentW = drawerLayout.layoutParams.width
         if (currentW != newW && currentW > 0 && sideDrawer.isOpen) {
             android.animation.ValueAnimator.ofInt(currentW, newW).apply {
-                duration = 450L
-                interpolator = LauncherUtils.FLUID_SPRING
+                duration = 420L
+                interpolator = MotionEngine.getInterpolator(lp.motionStyle)
                 addUpdateListener { anim ->
                     drawerLayout.layoutParams.width = anim.animatedValue as Int
                     drawerLayout.requestLayout()
@@ -402,10 +395,10 @@ class MainActivity : Activity() {
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }; lp.setHiddenApps(hidden)
                     Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
-                    refreshApps(true)
-                }
+                refreshApps(true)
             }
-        )
+        }
+    )
     }
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }

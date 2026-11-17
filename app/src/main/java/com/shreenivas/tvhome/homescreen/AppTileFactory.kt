@@ -1,5 +1,7 @@
 package com.shreenivas.tvhome.homescreen
 
+import com.shreenivas.tvhome.MotionEngine
+
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
@@ -134,14 +136,7 @@ object AppTileFactory {
         applyBadgeState(badge, lp, isFav)
 
         wrapper.setOnFocusChangeListener { _, hasFocus ->
-            val targetScale = if (hasFocus) 1.14f else 1.0f
-
-            innerCard.animate().cancel()
-            innerCard.animate()
-                .scaleX(targetScale).scaleY(targetScale)
-                .setDuration(220L)
-                .setInterpolator(LauncherUtils.FLUID_SPRING)
-                .start()
+        MotionEngine.animateFocus(innerCard, hasFocus, lp.motionStyle, 1.14f, 14f)
 
             if (hasFocus) {
                 innerCard.elevation = LauncherUtils.dpF(ctx, 14f)
@@ -222,7 +217,7 @@ object AppTileFactory {
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
-        if (lp.badgeMode != "none" && isFav) {
+        if (lp.badgeMode != "none") {
             badge.visibility = View.VISIBLE
             badge.text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
             badge.setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)

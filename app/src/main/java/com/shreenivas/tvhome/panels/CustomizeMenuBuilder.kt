@@ -1,23 +1,22 @@
 package com.shreenivas.tvhome.panels
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.homescreen.AppGridManager
-import com.shreenivas.tvhome.services.TvNotificationService
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
 import android.animation.LayoutTransition
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
-import android.view.FocusFinder
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import com.shreenivas.tvhome.LauncherPreferences
+import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.MotionEngine
+import com.shreenivas.tvhome.ui.TileThemePalette
 
 object CustomizeMenuBuilder {
     private var openSubMenu = ""
@@ -34,7 +33,7 @@ object CustomizeMenuBuilder {
         if (openSubMenu.isEmpty()) { onClosedCallback?.invoke(); return }
         val closedKey = openSubMenu
         val panel = activePanelRef ?: run { onClosedCallback?.invoke(); return }
-        
+
         val parentCard = panel.findViewWithTag<View>("acc_$closedKey")
         val box = activeSubBoxRef
 
@@ -55,7 +54,7 @@ object CustomizeMenuBuilder {
             onClosedCallback?.invoke()
         }
     }
-    
+
     fun closeSubMenuAndNavigate(moveDown: Boolean) {
         if (openSubMenu.isEmpty()) return
         val closedKey = openSubMenu
@@ -73,14 +72,35 @@ object CustomizeMenuBuilder {
             panel.layoutTransition = trans
         }
 
-        val targetFocus = if (moveDown && parentCard != null) {
-            FocusFinder.getInstance().findNextFocus(panel, parentCard, View.FOCUS_DOWN) ?: parentCard
-        } else {
-            parentCard
+        if (!moveDown || parentCard == null) {
+            parentCard?.requestFocus()
+            return
         }
-        targetFocus?.requestFocus()
-    }
 
+        val parentRow = if (parentCard.parent == panel) parentCard else parentCard.parent as? View
+        val startIdx = if (parentRow != null) panel.indexOfChild(parentRow) + 1 else 0
+        var nextTarget: View? = null
+
+        for (i in startIdx until panel.childCount) {
+            val child = panel.getChildAt(i)
+            if (child.isFocusable) {
+                nextTarget = child
+                break
+            }
+            if (child is ViewGroup) {
+                for (j in 0 until child.childCount) {
+                    val sub = child.getChildAt(j)
+                    if (sub.isFocusable) {
+                        nextTarget = sub
+                        break
+                    }
+                }
+                if (nextTarget != null) break
+            }
+        }
+
+        (nextTarget ?: parentCard).requestFocus()
+    }
         fun build(
         ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLiveRefresh: () -> Unit,
         onRebuildPanel: () -> Unit, onEditProfile: () -> Unit, onOpenWallpaper: () -> Unit,
@@ -98,24 +118,25 @@ object CustomizeMenuBuilder {
         val widthPct = lp.panelWidthPct; val narrowMode = widthPct <= 22
 
         addHeader(ctx, panel, "USER PROFILE & VISIBILITY")
-        addWideCard(ctx, panel, "card_profile", "👤", "User Profile & Greetings", "\"${lp.userName}\" • Custom greeting", "Edit ›", lp.accentColor, Color.rgb(68, 138, 255), onEditProfile)
+        addWideCard(ctx, panel, "card_profile", "👤", "User Profile & Greetings", "\"${lp.userName}\" • Custom greeting & city", "Edit ›", lp.accentColor, Color.rgb(68, 138, 255), onEditProfile)
 
         val hiddenSet = lp.getHiddenApps()
         val hiddenSub = if (hiddenSet.isEmpty()) "No apps hidden right now" else "${hiddenSet.size} app(s) hidden • Tap to view ribbon"
         addWideCard(ctx, panel, "card_hidden", "👁", "Hidden Apps", hiddenSub, if (hiddenSet.isEmpty()) "None" else "Show ›", lp.accentColor, Color.rgb(255, 115, 130)) {
             if (hiddenSet.isEmpty()) {
-                android.widget.Toast.makeText(ctx, "No hidden apps right now", android.widget.Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "No hidden apps right now", Toast.LENGTH_SHORT).show()
             } else {
                 onBackToApps()
                 onOpenHiddenRibbon()
             }
         }
+
         addHeader(ctx, panel, "DISPLAY PRESETS")
-        addAccordionPair(ctx, panel, lp, narrowMode, "tile_size", "📐", "Tile Size", cap(lp.tileSize), Color.rgb(64, 156, 255), "panel_width", "◫", "Panel Width", "$widthPct%", Color.rgb(156, 92, 255), onLiveRefresh)
+        addAccordionPair(ctx, panel, lp, narrowMode, "tile_size", "📐", "Tile Size", cap(lp.tileSize), Color.rgb(64, 156, 255), "panel_width", "◫", "Stage Width", "$widthPct%", Color.rgb(156, 92, 255), onLiveRefresh)
         addHeader(ctx, panel, "TILE & BADGE STYLING")
         addAccordionPair(ctx, panel, lp, narrowMode, "tile_shape", "▢", "Tile Shape", cap(lp.tileShape), Color.rgb(46, 204, 148), "icon_badge", "♡", "Icon Badge", cap(lp.badgeMode), Color.rgb(245, 86, 148), onLiveRefresh)
-        addHeader(ctx, panel, "GRID & ACCENT")
-        addAccordionPair(ctx, panel, lp, narrowMode, "cols", "⊞", "Apps Per Row", "${lp.columns} Cols", Color.rgb(255, 158, 68), "accent", "✦", "Accent Aura", cap(lp.accentName), Color.rgb(175, 105, 255), onLiveRefresh)
+        addHeader(ctx, panel, "MOTION & ACCENT")
+        addAccordionPair(ctx, panel, lp, narrowMode, "motion", "✨", "Motion Style", cap(lp.motionStyle), Color.rgb(255, 158, 68), "accent", "✦", "Accent Aura", cap(lp.accentName), Color.rgb(175, 105, 255), onLiveRefresh)
 
         addHeader(ctx, panel, "LAUNCHER THEMES (6 MODES)")
         val curTheme = lp.tileColor
@@ -168,13 +189,12 @@ object CustomizeMenuBuilder {
     private fun handleAccordionClick(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, key: String, clickedCard: LinearLayout, onLiveRefresh: () -> Unit) {
         if (key == openSubMenu) { closeSubMenuWithAnimation(); return }
         if (openSubMenu.isNotEmpty() && activeSubBoxRef != null) { panel.removeView(activeSubBoxRef); activeSubBoxRef = null; openSubMenu = "" }
-        
+
         openSubMenu = key; lastFocusedTag = "pill_${key}_sel"
         val rowOrCard = if (clickedCard.parent == panel) clickedCard else clickedCard.parent as View
         insertSubMenuAt(ctx, panel, lp, key, clickedCard, panel.indexOfChild(rowOrCard) + 1, onLiveRefresh)
     }
-
-    private fun insertSubMenuAt(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, key: String, parentCard: LinearLayout, index: Int, onLive: () -> Unit) {
+        private fun insertSubMenuAt(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, key: String, parentCard: LinearLayout, index: Int, onLive: () -> Unit) {
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(ctx, 10), dp(ctx, 10), dp(ctx, 10), dp(ctx, 10))
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.argb(175, 24, 34, 72), Color.argb(200, 16, 24, 54))).apply {
@@ -185,10 +205,10 @@ object CustomizeMenuBuilder {
 
         val (headerTxt, labels, vals) = when (key) {
             "tile_size" -> Triple("SELECT TILE SIZE", listOf("Small", "Medium", "Large"), listOf("small", "medium", "large"))
-            "panel_width" -> Triple("PANEL FOOTPRINT", listOf("20%", "25%", "30%", "35%", "40%"), listOf("20", "25", "30", "35", "40"))
+            "panel_width" -> Triple("STAGE & PANEL WIDTH", listOf("20%", "25%", "30%", "35%", "40%"), listOf("20", "25", "30", "35", "40"))
             "tile_shape" -> Triple("TILE SILHOUETTE", listOf("Squircle", "Circle", "Heart", "Classic"), listOf("squircle", "circle", "heart", "classic"))
             "icon_badge" -> Triple("CORNER EMBLEM", listOf("None", "Heart", "Blue", "Star"), listOf("none", "heart", "blue", "star"))
-            "cols" -> Triple("APPS PER ROW", listOf("4", "5", "6", "7", "8"), listOf("4", "5", "6", "7", "8"))
+            "motion" -> Triple("GLOBAL MOTION STYLE", MotionEngine.NAMES, MotionEngine.KEYS)
             else -> Triple("ACCENT AURA", listOf("Royal", "Magenta", "Purple", "Emerald", "Sunset"), listOf("royal", "magenta", "purple", "emerald", "sunset"))
         }
 
@@ -212,7 +232,7 @@ object CustomizeMenuBuilder {
                     when (key) {
                         "tile_size" -> lp.tileSize = v; "panel_width" -> lp.panelWidthPct = v.toInt()
                         "tile_shape" -> lp.tileShape = v; "icon_badge" -> lp.badgeMode = v
-                        "cols" -> lp.columns = v.toInt(); "accent" -> { lp.accentColor = lp.getAccentColorValue(v); lp.accentName = cap(v) }
+                        "motion" -> lp.motionStyle = v; "accent" -> { lp.accentColor = lp.getAccentColorValue(v); lp.accentName = cap(v) }
                     }
                     pills.forEachIndexed { k, p ->
                         val s = vals[k] == v; p.tag = if (s) "pill_${key}_sel" else "pill_${key}_${vals[k]}"
@@ -221,8 +241,14 @@ object CustomizeMenuBuilder {
                     updateParentCardValue(parentCard, key, v, lp.accentColor); onLive()
                 }
             }
-            pill.setOnFocusChangeListener { vw, f -> LauncherUtils.applyFocusSpring(vw, f, 1.05f, 2f); if (f) applySel() else vw.background = glossyPillBg(ctx, isOptSelected(lp, key, v), false, lp.accentColor) }
-            pill.setOnClickListener { applySel(); closeSubMenuWithAnimation() }
+            pill.setOnFocusChangeListener { vw, f ->
+                MotionEngine.animateFocus(vw, f, if (key == "motion") v else lp.motionStyle, 1.07f, 3f)
+                if (f) applySel() else vw.background = glossyPillBg(ctx, isOptSelected(lp, key, v), false, lp.accentColor)
+            }
+            pill.setOnClickListener {
+                applySel()
+                if (key == "motion") activeCloseDrawerRef?.invoke() else closeSubMenuWithAnimation()
+            }
             pills.add(pill); optRow.addView(pill, LinearLayout.LayoutParams(0, -2, 1f).apply { if (i < labels.lastIndex) rightMargin = dp(ctx, 4) })
         }
 
@@ -233,14 +259,14 @@ object CustomizeMenuBuilder {
 
     private fun updateParentCardValue(card: LinearLayout, key: String, v: String, accent: Int) {
         val mid = card.getChildAt(1) as? LinearLayout ?: return; val sub = mid.getChildAt(1) as? TextView ?: return
-        sub.text = when (key) { "panel_width" -> "$v%"; "cols" -> "$v Cols"; else -> cap(v) }
+        sub.text = when (key) { "panel_width" -> "$v%"; else -> cap(v) }
         sub.setTextColor(accent)
     }
 
     private fun isOptSelected(lp: LauncherPreferences, key: String, v: String): Boolean = when (key) {
         "tile_size" -> lp.tileSize == v; "panel_width" -> lp.panelWidthPct == v.toInt()
         "tile_shape" -> lp.tileShape == v; "icon_badge" -> lp.badgeMode == v
-        "cols" -> lp.columns == v.toInt(); else -> lp.accentColor == lp.getAccentColorValue(v)
+        "motion" -> lp.motionStyle == v; else -> lp.accentColor == lp.getAccentColorValue(v)
     }
 
     private fun makeIconBadge(ctx: Context, symbol: String, tint: Int, sizeDp: Int): TextView = TextView(ctx).apply {

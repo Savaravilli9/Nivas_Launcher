@@ -1,11 +1,5 @@
 package com.shreenivas.tvhome.panels
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.homescreen.AppGridManager
-import com.shreenivas.tvhome.services.TvNotificationService
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
 import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
@@ -51,14 +45,6 @@ object DrawerFocusTrap {
                     CustomizeMenuBuilder.closeSubMenuAndNavigate(code == KeyEvent.KEYCODE_DPAD_DOWN)
                     return true
                 }
-            }
-        }
-
-        if (code == KeyEvent.KEYCODE_DPAD_UP && inDrawer && current != null) {
-            val nextUp = FocusFinder.getInstance().findNextFocus(drawerLayout, current, View.FOCUS_UP)
-            if (nextUp == null) {
-                topNavBar.requestFocus()
-                return true
             }
         }
 

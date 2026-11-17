@@ -1,11 +1,5 @@
 package com.shreenivas.tvhome.panels
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.homescreen.AppGridManager
-import com.shreenivas.tvhome.services.TvNotificationService
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
@@ -25,6 +19,11 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import com.shreenivas.tvhome.LauncherPreferences
+import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.MotionEngine
+import com.shreenivas.tvhome.homescreen.AppGridManager
+import com.shreenivas.tvhome.services.TvNotificationService
 import java.util.Locale
 
 class SideControlDrawer(
@@ -53,6 +52,11 @@ class SideControlDrawer(
     private var activeScroll: ScrollView? = null
     private var activePanel: LinearLayout? = null
     private var brightnessPct = 85
+    private var stageWidget: View? = null
+
+    fun attachStageWidget(widget: View) {
+        stageWidget = widget
+    }
 
     fun toggle(mode: String) {
         if (isOpen && mode == currentMode) close() else open(mode)
@@ -81,21 +85,12 @@ class SideControlDrawer(
         if (!wasOpen) {
             drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(360L).start()
-
-            val startX = dynamicDrawerW + dp(30f)
-            drawerLayout.translationX = startX.toFloat()
-            drawerLayout.alpha = 0f
-            drawerLayout.animate()
-                .translationX(0f).alpha(1f)
-                .setDuration(420L)
-                .setInterpolator(LauncherUtils.FLUID_SPRING)
-                .withEndAction { drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null) }
-                .start()
-            drawerLayout.post { onLiveRefresh() }
+            MotionEngine.animatePanelEnter(drawerLayout, stageWidget, dynamicDrawerW, lp.motionStyle) {
+                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+            }
         }
     }
-
-    fun close() {
+        fun close() {
         if (!isOpen) return
         isOpen = false; currentMode = ""
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
@@ -103,14 +98,10 @@ class SideControlDrawer(
         drawerLayout.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         scrim.animate().alpha(0f).setDuration(280L).start()
 
-        drawerLayout.animate()
-            .translationX(out.toFloat()).alpha(0f)
-            .setDuration(400L)
-            .setInterpolator(LauncherUtils.FLUID_SPRING)
-            .withEndAction {
-                drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
-                scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
-            }.start()
+        MotionEngine.animatePanelExit(drawerLayout, stageWidget, out, lp.motionStyle) {
+            drawerLayout.setLayerType(View.LAYER_TYPE_NONE, null)
+            scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
+        }
         drawerLayout.post { onLiveRefresh() }
     }
 
@@ -220,8 +211,7 @@ class SideControlDrawer(
             panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
         }
     }
-
-    private fun buildPowerPanel(panel: LinearLayout) {
+        private fun buildPowerPanel(panel: LinearLayout) {
         addLabel(panel, "DEVICE POWER & REBOOT")
         addActionButton(panel, "🌙", "Sleep / Screensaver", "Put TV display to rest") {
             try { context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) } catch (_: Exception) {}
@@ -267,7 +257,7 @@ class SideControlDrawer(
 
         addLabel(panel, "NETWORK & FEATURES")
         addActionButton(panel, "📶", "Wi-Fi & Network", "Manage connection") { open(MODE_WIFI) }
-        addActionButton(panel, "✦", "Customize Home", "Themes, grid & wallpaper") { open(MODE_CUSTOMIZE) }
+        addActionButton(panel, "✦", "Customize Home", "Themes, motion & wallpaper") { open(MODE_CUSTOMIZE) }
         addActionButton(panel, "📱", "Installed Apps", "Storage & permissions") { launch(Settings.ACTION_APPLICATION_SETTINGS) }
     }
 
@@ -300,9 +290,14 @@ class SideControlDrawer(
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(12f), dp(20f), dp(8f)) }
         val nameInput = EditText(context).apply { isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
         val phraseInput = EditText(context).apply { isSingleLine = true; hint = "Custom Greeting"; setText(lp.greetingPhrase); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES }
-        box.addView(nameInput); box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
-        AlertDialog.Builder(context).setTitle("Profile & Greeting").setView(box).setPositiveButton("Save") { _, _ ->
-            lp.userName = nameInput.text.toString().trim(); lp.greetingPhrase = phraseInput.text.toString().trim()
+        val cityInput = EditText(context).apply { isSingleLine = true; hint = "Weather City (e.g. Visakhapatnam)"; setText(lp.weatherCity); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
+        box.addView(nameInput)
+        box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
+        box.addView(cityInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
+        AlertDialog.Builder(context).setTitle("Profile, Greeting & Weather City").setView(box).setPositiveButton("Save") { _, _ ->
+            lp.userName = nameInput.text.toString().trim()
+            lp.greetingPhrase = phraseInput.text.toString().trim()
+            lp.weatherCity = cityInput.text.toString().trim()
             onLiveRefresh(); populateActivePanel(false)
         }.setNegativeButton("Cancel", null).show()
     }

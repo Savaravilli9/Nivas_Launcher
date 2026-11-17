@@ -74,8 +74,15 @@ class LauncherPreferences(context: Context) {
     var sortOrder: String
         get() = prefs.getString("sort_order", "az") ?: "az"
         set(value) = prefs.edit().putString("sort_order", value).apply()
-        
+    
+    var motionStyle: String
+        get() = prefs.getString("motion_style", MotionEngine.STYLE_ELASTIC) ?: MotionEngine.STYLE_ELASTIC
+        set(value) = prefs.edit().putString("motion_style", value).apply()
 
+    var weatherCity: String
+        get() = prefs.getString("weather_city", "") ?: ""
+        set(value) = prefs.edit().putString("weather_city", value).apply()
+        
     // Preserves exact custom user ordering for Favorites
     fun getOrderedFavorites(): MutableList<String> {
         val raw = prefs.getString(PREF_FAVORITES_ORDER, null)
