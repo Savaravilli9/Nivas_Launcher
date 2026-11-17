@@ -372,7 +372,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyWallpaperOnly() {
-        if (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
+        while (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
             rootLayout.removeViewAt(0)
         }
         LauncherBackground.apply(this, rootLayout, lp)
