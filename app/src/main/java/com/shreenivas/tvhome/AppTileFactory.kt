@@ -157,9 +157,10 @@ object AppTileFactory {
                 canMoveLeft = isFavRow && canMoveLeft,
                 canMoveRight = isFavRow && canMoveRight,
                 accent = lp.accentColor,
+                isHiddenMode = false,
                 onToggleFav = { actions.onToggleFavorite(pkg, label) },
                 onMoveFav = { delta -> actions.onMoveFavorite(pkg, delta) },
-                onHideApp = { actions.onHideApp(pkg, label) }
+                onHideOrUnhideApp = { actions.onHideApp(pkg, label) }
             )
         }
 
