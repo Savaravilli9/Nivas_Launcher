@@ -1,7 +1,7 @@
 package com.shreenivas.tvhome.ui
 
 import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.utils.LauncherUtils
+import com.shreenivas.tvhome.LauncherUtils
 
 import android.animation.ValueAnimator
 import android.content.Context
