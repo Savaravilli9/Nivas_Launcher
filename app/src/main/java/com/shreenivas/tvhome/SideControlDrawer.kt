@@ -146,7 +146,8 @@ class SideControlDrawer(
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
     }
-        private fun populateActivePanel(isInitialOpen: Boolean) {
+
+    private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
         panel.removeAllViews()
 
@@ -155,6 +156,7 @@ class SideControlDrawer(
                 context, panel, lp, onLiveRefresh, { populateActivePanel(false) },
                 ::showUserNameDialog,
                 { if (lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null) open(MODE_WALLPAPER_EDIT) else onPickWallpaper() },
+                onOpenHiddenRibbon,
                 ::close
             )
             MODE_WIFI -> WifiPanelBuilder.build(context, panel, lp) { populateActivePanel(false) }
