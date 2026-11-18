@@ -362,7 +362,7 @@ class AmbientStageWidget(
 
     private fun dp(v: Int) = LauncherUtils.dp(context, v)
 
-    private class ColorfulAnalogClockView(ctx: Context) : View(ctx) {
+        private class ColorfulAnalogClockView(ctx: Context) : View(ctx) {
         private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val dialPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
         private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
@@ -370,8 +370,8 @@ class AmbientStageWidget(
         private var accent = Color.rgb(92, 184, 255)
 
         fun updateAccent(col: Int) { accent = col; invalidate() }
-        
-    override fun onDraw(canvas: Canvas) {
+
+        override fun onDraw(canvas: Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
             if (w <= 0f || h <= 0f) return
             val cx = w / 2f; val cy = h / 2f
@@ -410,15 +410,6 @@ class AmbientStageWidget(
             handPaint.color = accent
             canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 4f), handPaint)
         }
-
-        private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {
-            val rad = Math.toRadians(deg.toDouble())
-            handPaint.style = Paint.Style.STROKE
-            handPaint.strokeWidth = LauncherUtils.dpF(context, strokeDp)
-            handPaint.color = col
-            canvas.drawLine(cx, cy, (cx + cos(rad) * len).toFloat(), (cy + sin(rad) * len).toFloat(), handPaint)
-        }
-    }
 
         private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {
             val rad = Math.toRadians(deg.toDouble())
