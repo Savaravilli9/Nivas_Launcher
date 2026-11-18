@@ -1,6 +1,8 @@
 package com.shreenivas.tvhome.ui
 
+import android.content.Context
 import android.graphics.Color
+import android.net.wifi.WifiManager
 
 object TileThemePalette {
     val NAMES = listOf(
@@ -15,6 +17,11 @@ object TileThemePalette {
         "frost", "ocean", "cyber", "sunset",
         "emerald", "dark", "crystal", "obsidian"
     )
+
+    fun getTopBottomColors(themeKey: String?, focused: Boolean): IntArray {
+        val (normal, foc) = getColors(themeKey, Color.WHITE)
+        return if (focused) foc else normal
+    }
 
     fun getColors(themeKey: String?, accent: Int): Pair<IntArray, IntArray> {
         return when (themeKey) {
@@ -51,5 +58,14 @@ object TileThemePalette {
                 intArrayOf(Color.argb(210, 58, 92, 168), Color.argb(155, 32, 54, 112), Color.argb(195, 78, 118, 205))
             )
         }
+    }
+
+    fun getConnectedSsid(ctx: Context): String {
+        return try {
+            val wm = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            @Suppress("DEPRECATION")
+            val raw = wm?.connectionInfo?.ssid?.replace("\"", "") ?: ""
+            if (raw.isNotEmpty() && raw != "<unknown ssid>") raw else "Wi-Fi"
+        } catch (_: Exception) { "Wi-Fi" }
     }
 }
