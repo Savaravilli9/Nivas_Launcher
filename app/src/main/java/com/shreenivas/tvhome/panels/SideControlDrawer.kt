@@ -455,14 +455,17 @@ class SideControlDrawer(
 
     private fun showUserNameDialog() {
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(12f), dp(20f), dp(8f)) }
-        val nameInput = EditText(context).apply { isSingleLine = true; hint = "Your Name (e.g. Shree)"; setText(lp.userName); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
+        val nameInput = EditText(context).apply { isSingleLine = true; hint = "Account Name (e.g. Shree)"; setText(lp.userName); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
+        val emailInput = EditText(context).apply { isSingleLine = true; hint = "Account Email (e.g. shree@gmail.com)"; setText(lp.userEmail); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS }
         val phraseInput = EditText(context).apply { isSingleLine = true; hint = "Custom Greeting"; setText(lp.greetingPhrase); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES }
         val cityInput = EditText(context).apply { isSingleLine = true; hint = "Weather City (e.g. Visakhapatnam)"; setText(lp.weatherCity); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS }
         box.addView(nameInput)
+        box.addView(emailInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
         box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
         box.addView(cityInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
-        AlertDialog.Builder(context).setTitle("Profile, Greeting & Weather City").setView(box).setPositiveButton("Save") { _, _ ->
+        AlertDialog.Builder(context).setTitle("Account, Greeting & Weather City").setView(box).setPositiveButton("Save") { _, _ ->
             lp.userName = nameInput.text.toString().trim()
+            lp.userEmail = emailInput.text.toString().trim()
             lp.greetingPhrase = phraseInput.text.toString().trim()
             lp.weatherCity = cityInput.text.toString().trim()
             onLiveRefresh(); populateActivePanel(false)
