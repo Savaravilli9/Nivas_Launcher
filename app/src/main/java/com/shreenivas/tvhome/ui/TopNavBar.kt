@@ -312,7 +312,7 @@ class TopNavBar(
             val total = memInfo.totalMem.coerceAtLeast(1L)
             val used = (total - memInfo.availMem).coerceAtLeast(0L)
             val pct = ((used.toDouble() / total.toDouble()) * 100.0).roundToInt().coerceIn(1, 99)
-            ramTv.text = "RAM \$pct%"
+            ramTv.text = "RAM $pct%"
         } catch (_: Exception) {
             ramTv.text = "RAM"
         }
@@ -352,7 +352,7 @@ class TopNavBar(
                     setStroke(dp(2), green)
                     cornerRadius = LauncherUtils.dpF(context, 22f)
                 }
-                wifiBubbleTv.text = " \$connectedSsid"
+                wifiBubbleTv.text = " $connectedSsid"
                 wifiBubbleTv.alpha = 1f
                 wifiBubbleTv.translationY = 0f
                 wifiBubbleTv.scaleX = 1f
