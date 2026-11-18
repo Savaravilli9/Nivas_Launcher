@@ -100,7 +100,7 @@ class TopNavBar(
         val avatarSize = dp(78) // ~2.1x-3x height centered across the top nav bar centerline
 
         val rowContainer = LinearLayout(context).apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
             clipToPadding = false
