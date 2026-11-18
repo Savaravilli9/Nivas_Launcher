@@ -13,10 +13,8 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.view.Gravity
 import android.view.KeyEvent
@@ -85,7 +83,6 @@ class MainActivity : Activity() {
 
         buildScreen()
         NightNudgeReceiver.scheduleNextNudge(this)
-        checkAndExplainPermissions()
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -94,33 +91,32 @@ class MainActivity : Activity() {
             addDataScheme("package")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pkgReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(pkgReceiver, filter, RECEIVER_EXPORTED)
         } else {
             registerReceiver(pkgReceiver, filter)
         }
         checkAndExplainPermissions()
-                
     }
 
-        private fun checkAndExplainPermissions() {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return
+    private fun checkAndExplainPermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
 
         val needed = mutableListOf(
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.GET_ACCOUNTS
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.GET_ACCOUNTS
         )
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            needed.add(android.Manifest.permission.BLUETOOTH_CONNECT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            needed.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
         val missing = needed.filter {
-            checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
         val alreadyPrompted = lp.prefs.getBoolean("perm_rationale_shown", false)
 
         if (missing.isNotEmpty() && !alreadyPrompted) {
             lp.prefs.edit().putBoolean("perm_rationale_shown", true).apply()
-            android.app.AlertDialog.Builder(this)
+            AlertDialog.Builder(this)
                 .setTitle("Permissions Required for Full Experience")
                 .setMessage(
                     "• Location: To detect your local city for live weather & scan nearby Wi-Fi networks.\n\n" +
@@ -133,7 +129,7 @@ class MainActivity : Activity() {
                 .setNegativeButton("Later", null)
                 .show()
         }
-        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -161,8 +157,7 @@ class MainActivity : Activity() {
             super.onBackPressed()
         }
     }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar)) {
             return true
         }
@@ -216,7 +211,8 @@ class MainActivity : Activity() {
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
         mainPage.addView(topNavBar)
-                val contentArea = FrameLayout(this)
+
+        val contentArea = FrameLayout(this)
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val rightStageW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
@@ -347,7 +343,7 @@ class MainActivity : Activity() {
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
-        contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
+                contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
@@ -409,10 +405,11 @@ class MainActivity : Activity() {
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }; lp.setHiddenApps(hidden)
                     Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
-                refreshApps(true)
+                    refreshApps(true)
+                }
             }
-        }
-    )
+        )
     }
+
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }
