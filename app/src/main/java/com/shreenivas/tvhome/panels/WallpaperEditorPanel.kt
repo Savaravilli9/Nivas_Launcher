@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.shreenivas.tvhome.LauncherPreferences
@@ -12,6 +13,7 @@ import com.shreenivas.tvhome.LauncherUtils
 import com.shreenivas.tvhome.ui.LauncherBackground
 
 object WallpaperEditorPanel {
+    private var lastFocusedTag = ""
 
     fun build(
         ctx: Context,
@@ -21,36 +23,44 @@ object WallpaperEditorPanel {
         onPickNewImage: () -> Unit,
         onDone: () -> Unit
     ) {
+        panel.clipChildren = false
+        panel.clipToPadding = false
         val hasCustomImage = lp.prefs.getString(LauncherPreferences.PREF_WALLPAPER, null) != null
         val curMode = lp.liveWallpaperMode
 
         addSection(ctx, panel, "SMART DYNAMIC MODES")
-        val autoRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val autoRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
+        }
         autoRow.addView(
             makeVisualCard(
-                ctx, lp, "✨", "Smart Auto", "Time + Weather",
+                ctx, lp, "wp_smart", "✨", "Smart Auto", "Time + Weather",
                 intArrayOf(Color.rgb(52, 128, 225), Color.rgb(155, 72, 185)),
                 !hasCustomImage && curMode == LauncherBackground.MODE_SMART
             ) {
+                lastFocusedTag = "wp_smart"
                 lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
                 lp.liveWallpaperMode = LauncherBackground.MODE_SMART
                 onLiveUpdate()
                 rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
             },
-            LinearLayout.LayoutParams(0, dp(ctx, 56), 1f).apply { rightMargin = dp(ctx, 7) }
+            LinearLayout.LayoutParams(0, dp(ctx, 54), 1f).apply { rightMargin = dp(ctx, 7) }
         )
         autoRow.addView(
             makeVisualCard(
-                ctx, lp, "🕒", "Time Flow", "Day to Night",
+                ctx, lp, "wp_auto", "🕒", "Time Flow", "Day to Night",
                 intArrayOf(Color.rgb(235, 138, 72), Color.rgb(42, 62, 135)),
                 !hasCustomImage && curMode == LauncherBackground.MODE_AUTO_TIME
             ) {
+                lastFocusedTag = "wp_auto"
                 lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
                 lp.liveWallpaperMode = LauncherBackground.MODE_AUTO_TIME
                 onLiveUpdate()
                 rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
             },
-            LinearLayout.LayoutParams(0, dp(ctx, 56), 1f)
+            LinearLayout.LayoutParams(0, dp(ctx, 54), 1f)
         )
         panel.addView(autoRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
 
@@ -66,20 +76,26 @@ object WallpaperEditorPanel {
         val sceneIcons = listOf("☀️", "🌸", "🌇", "🌊", "🌧️", "🌙")
 
         for (i in LauncherBackground.MANUAL_NAMES.indices step 2) {
-            val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                clipChildren = false
+                clipToPadding = false
+            }
             for (j in i until minOf(i + 2, LauncherBackground.MANUAL_NAMES.size)) {
                 val key = LauncherBackground.MANUAL_KEYS[j]
+                val tagStr = "wp_$key"
                 val sel = !hasCustomImage && curMode == key
                 val card = makeVisualCard(
-                    ctx, lp, sceneIcons[j], LauncherBackground.MANUAL_NAMES[j],
+                    ctx, lp, tagStr, sceneIcons[j], LauncherBackground.MANUAL_NAMES[j],
                     if (sel) "Active" else "Tap to set", sceneSwatches[j], sel
                 ) {
+                    lastFocusedTag = tagStr
                     lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
                     lp.liveWallpaperMode = key
                     onLiveUpdate()
                     rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
                 }
-                val p = LinearLayout.LayoutParams(0, dp(ctx, 52), 1f).apply {
+                val p = LinearLayout.LayoutParams(0, dp(ctx, 50), 1f).apply {
                     if (j == i) rightMargin = dp(ctx, 7)
                 }
                 row.addView(card, p)
@@ -89,41 +105,47 @@ object WallpaperEditorPanel {
 
         addSection(ctx, panel, "CUSTOM GALLERY PHOTO")
         val pickCard = makeVisualCard(
-            ctx, lp, "🖼", "Choose Photo from Storage",
+            ctx, lp, "wp_pick", "🖼", "Choose Photo from Storage",
             if (hasCustomImage) "Custom photo active • Tap to change" else "Select 4K / HD image",
             intArrayOf(Color.argb(85, 255, 255, 255), Color.argb(38, 255, 255, 255)),
             hasCustomImage
-        ) { onPickNewImage() }
-        panel.addView(pickCard, LinearLayout.LayoutParams(-1, dp(ctx, 52)).apply { bottomMargin = dp(ctx, 8) })
-                if (hasCustomImage) {
+        ) {
+            lastFocusedTag = "wp_pick"
+            onPickNewImage()
+        }
+        panel.addView(pickCard, LinearLayout.LayoutParams(-1, dp(ctx, 50)).apply { bottomMargin = dp(ctx, 8) })
+        if (hasCustomImage) {
             val auraOn = lp.photoWeatherAura
             val auraCard = makeVisualCard(
-                ctx, lp, if (auraOn) "🌦️" else "🚫",
+                ctx, lp, "wp_aura", if (auraOn) "🌦️" else "🚫",
                 "Subtle Corner Weather Aura",
-                if (auraOn) "Enabled • Soft edge glow (Tap to turn Off)" else "Disabled • Pure photo (Tap to turn On)",
+                if (auraOn) "Enabled • Soft edge glow (Tap to Off)" else "Disabled • Pure photo (Tap to On)",
                 intArrayOf(Color.argb(80, 68, 165, 235), Color.argb(40, 32, 52, 95)),
                 auraOn
             ) {
+                lastFocusedTag = "wp_aura"
                 lp.photoWeatherAura = !auraOn
                 onLiveUpdate()
                 rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
             }
-            panel.addView(auraCard, LinearLayout.LayoutParams(-1, dp(ctx, 52)).apply { bottomMargin = dp(ctx, 8) })
+            panel.addView(auraCard, LinearLayout.LayoutParams(-1, dp(ctx, 50)).apply { bottomMargin = dp(ctx, 8) })
 
-            addSection(ctx, panel, "PHOTO FIT, ZOOM & POSITION")
-            addPillRow(ctx, panel, lp, listOf("Fit", "Fill W", "Fill H")) { idx ->
-                val modes = listOf("fit", "width", "height")
-                lp.prefs.edit().putString("wp_scale_mode", modes[idx]).apply()
+            addSection(ctx, panel, "PHOTO FIT & ZOOM")
+            val curScaleMode = lp.prefs.getString("wp_scale_mode", "fit") ?: "fit"
+            addPillRow(ctx, panel, lp, "fit", listOf("Fit Screen", "Fill Screen"), listOf(curScaleMode == "fit", curScaleMode == "width")) { idx ->
+                val modeVal = if (idx == 0) "fit" else "width"
+                lp.prefs.edit().putString("wp_scale_mode", modeVal).apply()
                 onLiveUpdate()
+                rebuild(ctx, panel, lp, onLiveUpdate, onPickNewImage, onDone)
             }
-            addPillRow(ctx, panel, lp, listOf("Zoom -", "Reset", "Zoom +")) { idx ->
+            addPillRow(ctx, panel, lp, "zoom", listOf("Zoom -", "Reset", "Zoom +"), listOf(false, false, false)) { idx ->
                 val sp = lp.prefs
                 var z = sp.getFloat("wp_zoom", 1.0f)
                 z = when (idx) { 0 -> maxOf(1.0f, z - 0.1f); 1 -> 1.08f; else -> minOf(2.2f, z + 0.1f) }
                 sp.edit().putFloat("wp_zoom", z).apply()
                 onLiveUpdate()
             }
-            addPillRow(ctx, panel, lp, listOf("⬅", "⬆", "⬇", "➡")) { idx ->
+            addPillRow(ctx, panel, lp, "pos", listOf("⬅", "⬆", "⬇", "➡"), listOf(false, false, false, false)) { idx ->
                 val sp = lp.prefs
                 var ox = sp.getInt("wp_offset_x", 0); var oy = sp.getInt("wp_offset_y", 0)
                 val step = dp(ctx, 24)
@@ -134,13 +156,18 @@ object WallpaperEditorPanel {
         }
 
         val donePill = TextView(ctx).apply {
+            tag = "wp_done"
             text = "✓  Apply & Back"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
             background = pillBg(ctx, false, true, lp.accentColor)
-            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f); v.background = pillBg(ctx, f, true, lp.accentColor) }
-            setOnClickListener { onDone() }
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.02f, 3f); v.background = pillBg(ctx, f, true, lp.accentColor) }
+            setOnClickListener { lastFocusedTag = ""; onDone() }
         }
-        panel.addView(donePill, LinearLayout.LayoutParams(-1, dp(ctx, 42)).apply { topMargin = dp(ctx, 10); bottomMargin = dp(ctx, 24) })
+        panel.addView(donePill, LinearLayout.LayoutParams(-1, dp(ctx, 42)).apply { topMargin = dp(ctx, 10); bottomMargin = dp(ctx, 36) })
+
+        if (lastFocusedTag.isNotEmpty()) {
+            panel.post { panel.findViewWithTag<View>(lastFocusedTag)?.requestFocus() }
+        }
     }
 
     private fun rebuild(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, onLive: () -> Unit, onPick: () -> Unit, onDone: () -> Unit) {
@@ -149,14 +176,15 @@ object WallpaperEditorPanel {
     }
 
     private fun makeVisualCard(
-        ctx: Context, lp: LauncherPreferences, icon: String, title: String, sub: String,
+        ctx: Context, lp: LauncherPreferences, tagStr: String, icon: String, title: String, sub: String,
         gradColors: IntArray, selected: Boolean, onClick: () -> Unit
     ) = LinearLayout(ctx).apply {
+        tag = tagStr
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(ctx, 10), dp(ctx, 6), dp(ctx, 10), dp(ctx, 6)); isFocusable = true
         background = cardBg(ctx, false, selected, gradColors, lp.accentColor)
         setOnFocusChangeListener { v, f ->
-            LauncherUtils.applyFocusSpring(v, f, 1.03f, 4f)
+            LauncherUtils.applyFocusSpring(v, f, 1.02f, 4f)
             v.background = cardBg(ctx, f, selected, gradColors, lp.accentColor)
         }
         setOnClickListener { onClick() }
@@ -169,19 +197,29 @@ object WallpaperEditorPanel {
         if (selected) addView(TextView(ctx).apply { text = "✓"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
     }
 
-    private fun addPillRow(ctx: Context, panel: LinearLayout, lp: LauncherPreferences, labels: List<String>, onClick: (Int) -> Unit) {
-        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+    private fun addPillRow(
+        ctx: Context, panel: LinearLayout, lp: LauncherPreferences, prefix: String,
+        labels: List<String>, selectedFlags: List<Boolean>, onClick: (Int) -> Unit
+    ) {
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
+        }
         labels.forEachIndexed { i, txt ->
+            val tagStr = "wp_${prefix}_$i"
+            val sel = selectedFlags.getOrElse(i) { false }
             val pill = TextView(ctx).apply {
+                tag = tagStr
                 text = txt; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
-                background = pillBg(ctx, false, false, lp.accentColor)
-                setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.04f, 3f); v.background = pillBg(ctx, f, false, lp.accentColor) }
-                setOnClickListener { onClick(i) }
+                background = pillBg(ctx, false, sel, lp.accentColor)
+                setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f); v.background = pillBg(ctx, f, sel, lp.accentColor) }
+                setOnClickListener { lastFocusedTag = tagStr; onClick(i) }
             }
-            row.addView(pill, LinearLayout.LayoutParams(0, dp(ctx, 34), 1f).apply { if (i < labels.lastIndex) rightMargin = dp(ctx, 5) })
+            row.addView(pill, LinearLayout.LayoutParams(0, dp(ctx, 36), 1f).apply { if (i < labels.lastIndex) rightMargin = dp(ctx, 6) })
         }
-        panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
+        panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 7) })
     }
 
     private fun cardBg(ctx: Context, focused: Boolean, selected: Boolean, colors: IntArray, accent: Int) = GradientDrawable(
@@ -196,7 +234,7 @@ object WallpaperEditorPanel {
     }
 
     private fun pillBg(ctx: Context, focused: Boolean, selected: Boolean, accent: Int) = GradientDrawable().apply {
-        setColor(when { focused -> Color.argb(120, 255, 255, 255); selected -> Color.argb(85, 92, 168, 255); else -> Color.argb(45, 255, 255, 255) })
+        setColor(when { focused -> Color.argb(120, 255, 255, 255); selected -> LauncherUtils.withAlpha(accent, 130); else -> Color.argb(45, 255, 255, 255) })
         cornerRadius = LauncherUtils.dpF(ctx, 12f)
         setStroke(dp(ctx, if (focused || selected) 2 else 1), if (focused) Color.WHITE else accent)
     }
