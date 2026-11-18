@@ -99,27 +99,39 @@ class MainActivity : Activity() {
             registerReceiver(pkgReceiver, filter)
         }
     }
-        private fun checkPermissionsWithExplanation() {
-        val needLoc = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        val needOverlay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)
-        if (!needLoc && !needOverlay) return
 
-        val msg = buildString {
-            append("To give you the best TV experience, Shree TV Home needs:\n\n")
-            if (needLoc) append("• Location Access: Required by Android TV to display your connected Wi-Fi network name & local weather.\n\n")
-            if (needOverlay) append("• Display Over Other Apps: Shows gentle bedtime reminder bubbles at night while watching videos.")
+        private fun checkAndExplainPermissions() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return
+
+        val needed = mutableListOf(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.GET_ACCOUNTS
+        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            needed.add(android.Manifest.permission.BLUETOOTH_CONNECT)
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Optional Permissions")
-            .setMessage(msg.trim())
-            .setPositiveButton("Allow") { _, _ ->
-                if (needLoc) requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1002)
-                if (needOverlay) {
-                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+        val missing = needed.filter {
+            checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        val alreadyPrompted = lp.prefs.getBoolean("perm_rationale_shown", false)
+
+        if (missing.isNotEmpty() && !alreadyPrompted) {
+            lp.prefs.edit().putBoolean("perm_rationale_shown", true).apply()
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Permissions Required for Full Experience")
+                .setMessage(
+                    "• Location: To detect your local city for live weather & scan nearby Wi-Fi networks.\n\n" +
+                    "• Account Info: To display your signed-in profile name & email on the top bar.\n\n" +
+                    "• Bluetooth: To show connected remotes, speakers & audio devices."
+                )
+                .setPositiveButton("Allow Permissions") { _, _ ->
+                    requestPermissions(missing.toTypedArray(), 101)
                 }
-            }.setNegativeButton("Later", null).show()
-    }
+                .setNegativeButton("Later", null)
+                .show()
+        }
+        }
 
     override fun onDestroy() {
         super.onDestroy()
