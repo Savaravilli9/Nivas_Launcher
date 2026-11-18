@@ -106,50 +106,26 @@ class TopNavBar(
             clipToPadding = false
         }
 
-        // Profile Pill with space on left for the large centered avatar
-        val profilePill = FrameLayout(context).apply {
+        // Large Pop-Out Circular Avatar (Clickable to edit Profile & Photo)
+        val avatarFrame = FrameLayout(context).apply {
             tag = "nav_profile"
             isFocusable = true
             isClickable = true
-            clipChildren = false
-            clipToPadding = false
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.argb(95, 255, 255, 255), Color.argb(40, 255, 255, 255))
-            ).apply {
-                cornerRadius = LauncherUtils.dpF(context, 22f)
-                setStroke(dp(1), Color.argb(110, 255, 255, 255))
-            }
-            setOnFocusChangeListener { v, f ->
-                MotionEngine.animateFocus(v, f, lp.motionStyle, 1.06f, 6f)
-                v.background = GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    if (f) intArrayOf(Color.argb(145, 255, 255, 255), Color.argb(75, 255, 255, 255))
-                    else intArrayOf(Color.argb(95, 255, 255, 255), Color.argb(40, 255, 255, 255))
-                ).apply {
-                    cornerRadius = LauncherUtils.dpF(context, 22f)
-                    setStroke(dp(if (f) 2 else 1), if (f) lp.accentColor else Color.argb(110, 255, 255, 255))
-                }
-            }
-            setOnClickListener { callbacks.onProfileClick() }
-        }
-
-        profileNameTv = makeText(lp.userName.ifBlank { "Shree" }, 13f, Color.WHITE, true).apply {
-            isSingleLine = true
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(avatarSize + dp(10), 0, dp(16), 0)
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        profilePill.addView(profileNameTv, FrameLayout.LayoutParams(-2, barHeight, Gravity.CENTER_VERTICAL))
-
-        // Large Pop-Out Circular Avatar centered on the TopNavBar centerline
-        val avatarFrame = FrameLayout(context).apply {
             elevation = LauncherUtils.dpF(context, 10f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(lp.accentColor)
                 setStroke(dp(2), Color.WHITE)
             }
+            setOnFocusChangeListener { v, f ->
+                MotionEngine.animateFocus(v, f, lp.motionStyle, 1.08f, 8f)
+                v.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(lp.accentColor)
+                    setStroke(dp(if (f) 3 else 2), if (f) lp.accentColor else Color.WHITE)
+                }
+            }
+            setOnClickListener { callbacks.onProfileClick() }
         }
         avatarInitialTv = TextView(context).apply {
             textSize = 24f
@@ -164,13 +140,14 @@ class TopNavBar(
         avatarFrame.addView(avatarInitialTv, FrameLayout.LayoutParams(-1, -1))
         avatarFrame.addView(avatarImageView, FrameLayout.LayoutParams(-1, -1))
 
-        profilePill.addView(
+        rowContainer.addView(
             avatarFrame,
-            FrameLayout.LayoutParams(avatarSize, avatarSize, Gravity.START or Gravity.CENTER_VERTICAL)
+            LinearLayout.LayoutParams(avatarSize, avatarSize).apply { rightMargin = dp(12) }
         )
 
-        rowContainer.addView(profilePill, LinearLayout.LayoutParams(-2, barHeight))
-
+        // Greeting Card directly next to Profile Avatar
+        greetingCard = GreetingShineCard(context, lp.userName, lp.greetingPhrase, lp.accentColor)
+        rowContainer.addView(greetingCard, LinearLayout.LayoutParams(-2, dp(40)))
         rowContainer.addView(
             View(context).apply { setBackgroundColor(Color.argb(65, 255, 255, 255)) },
             LinearLayout.LayoutParams(dp(1), dp(26)).apply { leftMargin = dp(14); rightMargin = dp(14) }
