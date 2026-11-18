@@ -120,7 +120,8 @@ class AmbientStageWidget(
             }
             setOnClickListener { showCitySearchDialog() }
         }
-                val wTop = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER }
+
+        val wTop = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER }
         weatherIconTv.apply { text = "⛅"; textSize = 26f; setPadding(0, 0, dp(8), 0) }
         tempTv.apply {
             text = lp.prefs.getString("cached_temp", "28°C") ?: "28°C"
@@ -164,8 +165,7 @@ class AmbientStageWidget(
         cornerRadius = LauncherUtils.dpF(context, 18f)
         setStroke(dp(if (focused) 2 else 1), if (focused) lp.accentColor else Color.argb(80, 255, 255, 255))
     }
-
-    private fun showCitySearchDialog() {
+        private fun showCitySearchDialog() {
         val box = LinearLayout(context).apply {
             orientation = VERTICAL
             setPadding(dp(20), dp(12), dp(20), dp(8))
@@ -233,7 +233,8 @@ class AmbientStageWidget(
         digitalTimeTv.textSize = if (isNarrow) 21f else 26f
         analogView.requestLayout()
     }
-        fun triggerWeatherRefresh(force: Boolean = false) {
+
+    fun triggerWeatherRefresh(force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - lastWeatherFetchMs < 30 * 60 * 1000L) return
         lastWeatherFetchMs = now
@@ -385,6 +386,7 @@ class AmbientStageWidget(
 
             for (i in 0 until 12) {
                 val ang = Math.toRadians((i * 30 - 90).toDouble())
+                                val ang = Math.toRadians((i * 30 - 90).toDouble())
                 val isMajor = i % 3 == 0
                 tickPaint.strokeWidth = LauncherUtils.dpF(context, if (isMajor) 2.6f else 1.4f)
                 tickPaint.color = if (isMajor) accent else Color.argb(150, 220, 235, 255)
