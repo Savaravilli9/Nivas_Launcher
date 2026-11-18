@@ -12,7 +12,8 @@ object DrawerFocusTrap {
         event: KeyEvent,
         isDrawerOpen: Boolean,
         drawerLayout: ViewGroup,
-        topNavBar: ViewGroup
+        topNavBar: ViewGroup,
+        activeParentTag: String = ""
     ): Boolean {
         if (!isDrawerOpen || event.action != KeyEvent.ACTION_DOWN) return false
 
@@ -48,6 +49,7 @@ object DrawerFocusTrap {
             }
         }
 
+        // Moving DOWN from TopNavBar enters the open Side Drawer
         if (code == KeyEvent.KEYCODE_DPAD_DOWN && !inDrawer && current != null) {
             drawerLayout.requestFocus()
             return true
@@ -66,6 +68,16 @@ object DrawerFocusTrap {
                 next.requestFocus()
                 return true
             }
+
+            // If pressing UP at the top edge of the Drawer, jump focus back to the TopNavBar parent button
+            if (inDrawer && code == KeyEvent.KEYCODE_DPAD_UP) {
+                val parentBtn = if (activeParentTag.isNotEmpty()) {
+                    topNavBar.findViewWithTag<View>(activeParentTag)
+                } else null
+                (parentBtn ?: topNavBar.findViewWithTag("nav_customize") ?: topNavBar).requestFocus()
+                return true
+            }
+
             return inDrawer
         }
 
