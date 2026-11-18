@@ -115,8 +115,8 @@ object CustomizeMenuBuilder {
         }
 
         addHeader(ctx, panel, "ACCENT AURA")
-        val accentKeys = listOf("royal", "magenta", "purple", "emerald", "sunset")
-        val accentLabels = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
+        val accentKeys = LauncherPreferences.ACCENT_KEYS
+        val accentLabels = LauncherPreferences.ACCENT_LABELS
         val accentRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         accentKeys.forEachIndexed { idx, key ->
             val col = lp.getAccentColorValue(key)
