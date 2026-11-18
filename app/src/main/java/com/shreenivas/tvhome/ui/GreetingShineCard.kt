@@ -27,6 +27,7 @@ class GreetingShineCard(
 
     private val iconTv = TextView(ctx)
     private val titleTv = TextView(ctx)
+    private var overlayBubble: TextView? = null
     private var shimmerAnim: ValueAnimator? = null
     private var shimmerX = -200f
     private val shimmerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -50,13 +51,28 @@ class GreetingShineCard(
         }
         addView(iconTv)
         addView(titleTv)
-        refresh(userName, customPhrase, accentColor)
+        updateGreeting(userName, customPhrase)
+        setAccentColor(accentColor)
     }
 
-    fun refresh(name: String, phrase: String, accent: Int) {
+    fun attachOverlayBubble(bubble: TextView) {
+        overlayBubble = bubble
+    }
+
+    fun setAccentColor(accent: Int) {
+        accentColor = accent
+        background = GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(LauncherUtils.withAlpha(accentColor, 115), Color.argb(85, 22, 34, 72))
+        ).apply {
+            cornerRadius = LauncherUtils.dpF(context, 20f)
+            setStroke(dp(1), Color.argb(115, 255, 255, 255))
+        }
+    }
+
+    fun updateGreeting(name: String, phrase: String) {
         userName = name
         customPhrase = phrase
-        accentColor = accent
 
         val hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         val (emoji, autoGreet) = when (hr) {
@@ -72,14 +88,6 @@ class GreetingShineCard(
             customPhrase.isNotBlank() -> customPhrase
             cleanName.isNotEmpty() -> "$autoGreet, $cleanName"
             else -> autoGreet
-        }
-
-        background = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(LauncherUtils.withAlpha(accentColor, 115), Color.argb(85, 22, 34, 72))
-        ).apply {
-            cornerRadius = LauncherUtils.dpF(context, 20f)
-            setStroke(dp(1), Color.argb(115, 255, 255, 255))
         }
     }
 
