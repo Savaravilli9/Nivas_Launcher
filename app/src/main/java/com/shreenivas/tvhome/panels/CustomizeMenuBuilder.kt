@@ -201,6 +201,7 @@ object CustomizeMenuBuilder {
                 val key = TileThemePalette.KEYS[j]
                 val sel = key == curTheme
                 val tagStr = "theme_$key"
+                val gradColors = TileThemePalette.getColors(key, lp.accentColor).first
                 val card = LinearLayout(ctx).apply {
                     tag = tagStr
                     orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
