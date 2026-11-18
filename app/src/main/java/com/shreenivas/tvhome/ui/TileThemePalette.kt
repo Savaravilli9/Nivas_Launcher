@@ -4,38 +4,52 @@ import android.graphics.Color
 
 object TileThemePalette {
     val NAMES = listOf(
-        "Royal Indigo", "Ocean Breeze", "Cyber Neon",
-        "Sunset Glow", "Emerald Forest", "Slate Dark"
+        "Royal Indigo", "Ocean Breeze", "Cyber Neon", "Sunset Glow",
+        "Emerald Forest", "Slate Dark", "Frosted Crystal", "Golden Obsidian"
     )
     val SUBTITLES = listOf(
-        "Glossy & Deep", "Cyan & Deep Sea", "Electric & Cyber",
-        "Crimson & Amber", "Deep Jungle & Mint", "Graphite & Matte"
+        "Glossy & Deep", "Cyan & Deep Sea", "Electric & Cyber", "Crimson & Amber",
+        "Deep Jungle & Mint", "Graphite & Matte", "Vision Pure Glass", "Luxury Black & Gold"
     )
     val KEYS = listOf(
-        "frost", "sapphire", "amethyst", "rose", "emerald", "gold"
+        "frost", "ocean", "cyber", "sunset",
+        "emerald", "dark", "crystal", "obsidian"
     )
 
-    fun getTopBottomColors(key: String, focused: Boolean): IntArray {
-        val aTop = if (focused) 235 else 155
-        val aBot = if (focused) 250 else 185
-        return when (key) {
-            "sapphire" -> intArrayOf(Color.argb(aTop, 32, 138, 235), Color.argb(aBot, 16, 66, 145))
-            "emerald" -> intArrayOf(Color.argb(aTop, 28, 168, 124), Color.argb(aBot, 12, 82, 62))
-            "rose" -> intArrayOf(Color.argb(aTop, 224, 72, 118), Color.argb(aBot, 128, 32, 68))
-            "amethyst" -> intArrayOf(Color.argb(aTop, 148, 72, 235), Color.argb(aBot, 76, 32, 142))
-            "gold" -> intArrayOf(Color.argb(aTop, 56, 64, 86), Color.argb(aBot, 30, 35, 50))
-            else -> intArrayOf(Color.argb(aTop, 62, 84, 182), Color.argb(aBot, 38, 52, 128))
-        }
-    }
-
-    fun getWallpaperGradient(key: String): IntArray {
-        return when (key) {
-            "sapphire" -> intArrayOf(Color.rgb(8, 36, 92), Color.rgb(18, 78, 152), Color.rgb(10, 42, 98))
-            "emerald" -> intArrayOf(Color.rgb(8, 46, 44), Color.rgb(18, 92, 76), Color.rgb(10, 48, 42))
-            "rose" -> intArrayOf(Color.rgb(58, 16, 48), Color.rgb(112, 32, 74), Color.rgb(48, 14, 42))
-            "amethyst" -> intArrayOf(Color.rgb(32, 18, 86), Color.rgb(72, 34, 148), Color.rgb(28, 16, 72))
-            "gold" -> intArrayOf(Color.rgb(18, 22, 32), Color.rgb(34, 40, 54), Color.rgb(16, 18, 26))
-            else -> intArrayOf(Color.rgb(18, 28, 94), Color.rgb(44, 38, 132), Color.rgb(22, 28, 88))
+    fun getColors(themeKey: String?, accent: Int): Pair<IntArray, IntArray> {
+        return when (themeKey) {
+            "ocean" -> Pair(
+                intArrayOf(Color.argb(150, 12, 58, 120), Color.argb(110, 6, 36, 82), Color.argb(135, 16, 86, 155)),
+                intArrayOf(Color.argb(215, 22, 115, 215), Color.argb(165, 10, 65, 145), Color.argb(200, 32, 155, 245))
+            )
+            "cyber" -> Pair(
+                intArrayOf(Color.argb(155, 58, 22, 115), Color.argb(115, 32, 12, 72), Color.argb(145, 88, 28, 155)),
+                intArrayOf(Color.argb(220, 135, 52, 235), Color.argb(175, 78, 24, 165), Color.argb(215, 185, 72, 255))
+            )
+            "sunset" -> Pair(
+                intArrayOf(Color.argb(155, 120, 32, 68), Color.argb(115, 78, 18, 46), Color.argb(145, 155, 48, 72)),
+                intArrayOf(Color.argb(225, 225, 78, 108), Color.argb(175, 155, 38, 75), Color.argb(215, 255, 115, 92))
+            )
+            "emerald" -> Pair(
+                intArrayOf(Color.argb(150, 14, 78, 62), Color.argb(110, 8, 48, 38), Color.argb(135, 22, 105, 82)),
+                intArrayOf(Color.argb(220, 26, 158, 120), Color.argb(175, 14, 105, 78), Color.argb(215, 48, 205, 155))
+            )
+            "dark" -> Pair(
+                intArrayOf(Color.argb(180, 18, 22, 34), Color.argb(160, 10, 14, 22), Color.argb(175, 26, 30, 44)),
+                intArrayOf(Color.argb(230, 38, 46, 68), Color.argb(200, 22, 28, 44), Color.argb(225, 52, 62, 92))
+            )
+            "crystal" -> Pair(
+                intArrayOf(Color.argb(95, 235, 245, 255), Color.argb(55, 185, 215, 250), Color.argb(85, 220, 240, 255)),
+                intArrayOf(Color.argb(155, 255, 255, 255), Color.argb(105, 210, 235, 255), Color.argb(145, 240, 250, 255))
+            )
+            "obsidian" -> Pair(
+                intArrayOf(Color.argb(195, 18, 16, 14), Color.argb(175, 10, 10, 12), Color.argb(190, 34, 28, 18)),
+                intArrayOf(Color.argb(235, 68, 54, 26), Color.argb(210, 28, 24, 18), Color.argb(230, 115, 88, 36))
+            )
+            else -> Pair(
+                intArrayOf(Color.argb(145, 26, 40, 82), Color.argb(100, 16, 26, 56), Color.argb(130, 38, 56, 108)),
+                intArrayOf(Color.argb(210, 58, 92, 168), Color.argb(155, 32, 54, 112), Color.argb(195, 78, 118, 205))
+            )
         }
     }
 }
