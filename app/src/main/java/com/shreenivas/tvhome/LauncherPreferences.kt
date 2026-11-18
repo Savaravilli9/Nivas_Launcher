@@ -96,6 +96,11 @@ class LauncherPreferences(context: Context) {
     var weatherCity: String
         get() = prefs.getString("weather_city", "") ?: ""
         set(value) = prefs.edit().putString("weather_city", value).apply()
+
+    var userEmail: String
+        get() = prefs.getString("user_email", "") ?: ""
+        set(value) = prefs.edit().putString("user_email", value).apply()
+        
         
     // Preserves exact custom user ordering for Favorites
     fun getOrderedFavorites(): MutableList<String> {
