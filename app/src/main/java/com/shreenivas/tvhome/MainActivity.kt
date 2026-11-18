@@ -98,6 +98,8 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(pkgReceiver, filter)
         }
+        checkAndExplainPermissions()
+                
     }
 
         private fun checkAndExplainPermissions() {
