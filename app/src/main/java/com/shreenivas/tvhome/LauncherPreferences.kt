@@ -22,14 +22,12 @@ class LauncherPreferences(context: Context) {
         const val PREF_HIDDEN_APPS = "hidden_apps_set"
         const val PREF_USER_NAME = "launcher_user_name"
         const val PREF_GREETING_PHRASE = "launcher_greeting_phrase"
-        const val PREF_SORT_ASC = "sort_ascending"
+        val ACCENT_KEYS = listOf("royal", "magenta", "purple", "emerald", "sunset")
+        val ACCENT_LABELS = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
     }
 
     val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    val ACCENT_KEYS = listOf("royal", "magenta", "purple", "emerald", "sunset")
-    val ACCENT_LABELS = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
-    
     var accentColor: Int
         get() = prefs.getInt(PREF_ACCENT, Color.rgb(92, 168, 255))
         set(value) = prefs.edit().putInt(PREF_ACCENT, value).apply()
