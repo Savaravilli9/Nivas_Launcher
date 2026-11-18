@@ -85,7 +85,7 @@ class MainActivity : Activity() {
 
         buildScreen()
         NightNudgeReceiver.scheduleNextNudge(this)
-        checkPermissionsWithExplanation()
+        checkAndExplainPermissions()
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
