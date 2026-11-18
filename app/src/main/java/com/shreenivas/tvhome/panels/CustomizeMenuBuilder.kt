@@ -205,10 +205,10 @@ object CustomizeMenuBuilder {
                     tag = tagStr
                     orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                     setPadding(dp(ctx, 9), dp(ctx, 6), dp(ctx, 9), dp(ctx, 6)); isFocusable = true
-                    background = themeCardBg(ctx, sel, false, themeGrads[j], lp.accentColor)
+                    background = themeCardBg(ctx, sel, false, gradColors, lp.accentColor)
                     setOnFocusChangeListener { v, f ->
                         LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f)
-                        v.background = themeCardBg(ctx, sel, f, themeGrads[j], lp.accentColor)
+                        v.background = themeCardBg(ctx, sel, f, gradColors, lp.accentColor)
                     }
                     setOnClickListener {
                         lastFocusedTag = tagStr; lp.tileColor = key; onLiveRefresh(); onRebuildPanel()
