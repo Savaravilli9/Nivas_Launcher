@@ -244,8 +244,9 @@ class TopNavBar(
             ramTv.text = "RAM"
         }
     }
-
+ 
     @Suppress("DEPRECATION")
+    private var lastShownSsid = ""
     private fun updateWifiVisualState() {
         val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val connectedSsid = TileThemePalette.getConnectedSsid(context).takeIf { it != "Wi-Fi" }
@@ -278,7 +279,7 @@ class TopNavBar(
                     setStroke(dp(2), green)
                     cornerRadius = LauncherUtils.dpF(context, 22f)
                 }
-                wifiBubbleTv.text = "● $connected"
+                wifiBubbleTv.text = " $connectedSsid"
                 wifiBubbleTv.alpha = 1f
                 wifiBubbleTv.translationY = 0f
                 wifiBubbleTv.scaleX = 1f
