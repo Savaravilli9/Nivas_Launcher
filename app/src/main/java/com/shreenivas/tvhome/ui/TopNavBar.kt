@@ -260,7 +260,6 @@ class TopNavBar(
 
     fun refreshProfileAvatar() {
         val cleanName = lp.userName.ifBlank { "Shree" }
-        profileNameTv.text = cleanName
         val initial = cleanName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "S"
         avatarInitialTv.text = initial
 
