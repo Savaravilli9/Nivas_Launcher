@@ -40,7 +40,8 @@ object AppGridManager {
                 val sortPill = TextView(ctx).apply {
                     text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"
                     textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-                    setPadding(dp(ctx, 11), dp(ctx, 4), dp(ctx, 11), dp(ctx, 4)); isFocusable = true; background = badgeBg(ctx, false)
+                    isSingleLine = true; maxLines = 1
+                    setPadding(dp(ctx, 12), dp(ctx, 4), dp(ctx, 12), dp(ctx, 4)); isFocusable = true; background = badgeBg(ctx, false)
                     setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f); v.background = badgeBg(ctx, f) }
                     setOnClickListener { lp.sortOrder = if (lp.sortOrder == "za") "az" else "za"; text = if (lp.sortOrder == "za") "⇅  Z-A ORDER" else "⇅  A-Z ORDER"; onSortChanged() }
                 }
@@ -138,10 +139,10 @@ object AppGridManager {
         val favApps = favOrder.mapNotNull { byPkg[it] }
         val sortedAll = if (lp.sortOrder == "za") visibleApps.sortedByDescending { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) } else visibleApps.sortedBy { AppTileFactory.getCachedLabel(pm, it).lowercase(Locale.ROOT) }
         val screenW = ctx.resources.displayMetrics.widthPixels
-        val sidePad = dp(ctx, 56)
+        val sidePad = dp(ctx, 48)
         val gap = dp(ctx, 12)
         val rightStageW = maxOf(dp(ctx, 250), (screenW * (lp.panelWidthPct / 100f)).toInt())
-        val currentAvailableW = screenW - sidePad - rightStageW - dp(ctx, 16)
+        val currentAvailableW = screenW - sidePad - rightStageW - dp(ctx, 6)
 
         val desiredTileDp = when (lp.tileSize) {
             "small" -> 86
