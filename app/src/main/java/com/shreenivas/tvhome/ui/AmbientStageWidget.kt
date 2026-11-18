@@ -419,7 +419,6 @@ class AmbientStageWidget(
             canvas.drawLine(cx, cy, (cx + cos(rad) * len).toFloat(), (cy + sin(rad) * len).toFloat(), handPaint)
         }
     }
-}
 
         private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {
             val rad = Math.toRadians(deg.toDouble())
