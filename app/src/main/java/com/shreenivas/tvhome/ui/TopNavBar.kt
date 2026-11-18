@@ -93,11 +93,21 @@ class TopNavBar(
         clipToPadding = false
         setPadding(0, dp(4), 0, dp(16))
 
-        val clockBox = LinearLayout(context).apply { orientation = VERTICAL }
-        dateTv = makeText("", 18f, Color.WHITE, true).apply {
+        val clockBox = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(12), dp(5), dp(14), dp(5))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.argb(85, 255, 255, 255), Color.argb(35, 255, 255, 255))
+            ).apply {
+                cornerRadius = LauncherUtils.dpF(context, 14f)
+                setStroke(dp(1), Color.argb(95, 255, 255, 255))
+            }
+        }
+        dateTv = makeText("", 12.5f, Color.WHITE, true).apply {
             setShadowLayer(4f, 0f, 2f, Color.argb(140, 0, 0, 0))
         }
-        timeTv = makeText("", 13.5f, Color.argb(230, 225, 242, 255), true)
+        timeTv = makeText("", 10.5f, lp.accentColor, true)
         clockBox.addView(dateTv)
         clockBox.addView(timeTv)
         addView(clockBox)
@@ -214,8 +224,8 @@ class TopNavBar(
     fun createFloatingNudgeView(): TextView = nudgeOverlayBubble
     private fun updateClockRamAndWifi() {
         val now = Date()
-        dateTv.text = SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(now)
-        timeTv.text = SimpleDateFormat("h:mm a", Locale.getDefault()).format(now)
+        dateTv.text = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(now)
+        timeTv.text = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
         refreshGreeting()
         updateRamInfo()
         updateWifiVisualState()
