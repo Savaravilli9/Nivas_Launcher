@@ -161,14 +161,39 @@ object CustomizeMenuBuilder {
 
         addHeader(ctx, panel, "LAUNCHER THEMES")
         val curTheme = lp.tileColor
-        val themeGrads = listOf(
-            intArrayOf(Color.argb(95, 165, 210, 255), Color.argb(45, 95, 145, 220)),
-            intArrayOf(Color.argb(120, 22, 32, 65), Color.argb(155, 12, 18, 38)),
-            intArrayOf(Color.argb(115, 25, 95, 195), Color.argb(75, 12, 52, 130)),
-            intArrayOf(Color.argb(115, 125, 48, 195), Color.argb(75, 65, 22, 125)),
-            intArrayOf(Color.argb(115, 22, 145, 105), Color.argb(75, 12, 85, 65)),
-            intArrayOf(Color.argb(115, 215, 85, 58), Color.argb(75, 145, 38, 65))
-        )
+
+        for (i in TileThemePalette.NAMES.indices step 2) {
+            val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            for (j in i until minOf(i + 2, TileThemePalette.NAMES.size)) {
+                val key = TileThemePalette.KEYS[j]
+                val sel = key == curTheme
+                val tagStr = "theme_$key"
+                val gradColors = TileThemePalette.getColors(key, lp.accentColor).first
+                val card = LinearLayout(ctx).apply {
+                    tag = tagStr
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(ctx, 9), dp(ctx, 6), dp(ctx, 9), dp(ctx, 6)); isFocusable = true
+                    background = themeCardBg(ctx, sel, false, gradColors, lp.accentColor)
+                    setOnFocusChangeListener { v, f ->
+                        LauncherUtils.applyFocusSpring(v, f, 1.03f, 3f)
+                        v.background = themeCardBg(ctx, sel, f, gradColors, lp.accentColor)
+                    }
+                    setOnClickListener {
+                        lastFocusedTag = tagStr; lp.tileColor = key; onLiveRefresh(); onRebuildPanel()
+                    }
+                }
+                val mid = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+                mid.addView(TextView(ctx).apply { text = TileThemePalette.NAMES[j]; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); isSingleLine = true })
+                mid.addView(TextView(ctx).apply { text = TileThemePalette.SUBTITLES[j]; textSize = 7.5f; setTextColor(Color.argb(200, 225, 240, 255)); isSingleLine = true })
+                card.addView(mid, LinearLayout.LayoutParams(0, -2, 1f))
+                if (sel) card.addView(TextView(ctx).apply { text = "✓"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(lp.accentColor) })
+
+                row.addView(card, LinearLayout.LayoutParams(0, dp(ctx, 44), 1f).apply {
+                    if (j == i) rightMargin = dp(ctx, 6)
+                })
+            }
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
+        }
 
         for (i in TileThemePalette.NAMES.indices step 2) {
             val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
