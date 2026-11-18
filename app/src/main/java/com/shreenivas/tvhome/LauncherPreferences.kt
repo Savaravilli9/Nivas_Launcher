@@ -16,7 +16,7 @@ class LauncherPreferences(context: Context) {
         const val PREF_BADGE = "icon_badge"
         const val PREF_COLUMNS = "grid_columns"
         const val PREF_PANEL_WIDTH = "panel_width_pct"
-        const val PREF_WALLPAPER = "wallpaper_uri"
+        const val PREF_WALLPAPER = "custom_wallpaper_uri"
         const val PREF_FAVORITES = "favorites"
         const val PREF_FAVORITES_ORDER = "favorites_ordered_list"
         const val PREF_HIDDEN_APPS = "hidden_apps_set"
@@ -27,6 +27,9 @@ class LauncherPreferences(context: Context) {
 
     val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    val ACCENT_KEYS = listOf("royal", "magenta", "purple", "emerald", "sunset")
+    val ACCENT_LABELS = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
+    
     var accentColor: Int
         get() = prefs.getInt(PREF_ACCENT, Color.rgb(92, 168, 255))
         set(value) = prefs.edit().putInt(PREF_ACCENT, value).apply()
