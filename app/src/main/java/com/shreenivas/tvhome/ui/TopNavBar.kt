@@ -60,7 +60,7 @@ class TopNavBar(
     private var swingAnim: ValueAnimator? = null
     private var breatheAnim: ValueAnimator? = null
     private var wifiStateMode = -1
-    private var lastShownSsid = ""
+    private var lastShown = ""
     private var showConnectingAlt = false
 
     private val statusReceiver = object : BroadcastReceiver() {
@@ -248,7 +248,7 @@ class TopNavBar(
     @Suppress("DEPRECATION")
     private fun updateWifiVisualState() {
         val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val connectedSsid = WifiPanelBuilder.getConnectedSsid(context, wm)
+        val connectedSsid = TileThemePalette.getConnectedSsid(context).takeIf { it != "Wi-Fi" }
         val isWifiEnabling = try { wm?.wifiState == WifiManager.WIFI_STATE_ENABLING } catch (_: Exception) { false }
 
         val newMode = when {
@@ -278,7 +278,7 @@ class TopNavBar(
                     setStroke(dp(2), green)
                     cornerRadius = LauncherUtils.dpF(context, 22f)
                 }
-                wifiBubbleTv.text = "● $connectedSsid"
+                wifiBubbleTv.text = "● $connected"
                 wifiBubbleTv.alpha = 1f
                 wifiBubbleTv.translationY = 0f
                 wifiBubbleTv.scaleX = 1f
