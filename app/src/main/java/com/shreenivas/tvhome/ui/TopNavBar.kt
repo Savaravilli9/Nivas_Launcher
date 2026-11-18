@@ -1,7 +1,6 @@
 package com.shreenivas.tvhome.ui
 
 import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.panels.WifiPanelBuilder
 import com.shreenivas.tvhome.LauncherUtils
 
 import android.animation.ValueAnimator
@@ -25,9 +24,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 
 class TopNavBar(
@@ -60,7 +56,6 @@ class TopNavBar(
     private var swingAnim: ValueAnimator? = null
     private var breatheAnim: ValueAnimator? = null
     private var wifiStateMode = -1
-    private var lastShownSsid = ""
     private var showConnectingAlt = false
 
     private val statusReceiver = object : BroadcastReceiver() {
@@ -93,14 +88,45 @@ class TopNavBar(
         clipToPadding = false
         setPadding(0, dp(4), 0, dp(16))
 
-        val clockBox = LinearLayout(context).apply { orientation = VERTICAL }
-        dateTv = makeText("", 18f, Color.WHITE, true).apply {
-            setShadowLayer(4f, 0f, 2f, Color.argb(140, 0, 0, 0))
+        val accountPill = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isFocusable = true
+            isClickable = true
+            setPadding(dp(8), dp(5), dp(14), dp(5))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.argb(85, 255, 255, 255), Color.argb(35, 255, 255, 255))
+            ).apply {
+                cornerRadius = LauncherUtils.dpF(context, 20f)
+                setStroke(dp(1), Color.argb(95, 255, 255, 255))
+            }
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f) }
+            setOnClickListener { callbacks.onCustomizeClick() }
         }
-        timeTv = makeText("", 13.5f, Color.argb(230, 225, 242, 255), true)
-        clockBox.addView(dateTv)
-        clockBox.addView(timeTv)
-        addView(clockBox)
+        val avatarCircle = TextView(context).apply {
+            val initial = lp.userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "U"
+            text = initial
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(lp.accentColor)
+                setStroke(dp(1), Color.WHITE)
+            }
+        }
+        accountPill.addView(avatarCircle, LayoutParams(dp(26), dp(26)).apply { rightMargin = dp(8) })
+
+        val accTextCol = LinearLayout(context).apply { orientation = VERTICAL }
+        dateTv = makeText(lp.userName.ifBlank { "Home Profile" }, 11f, Color.WHITE, true)
+        val detectedEmail = lp.userEmail.ifBlank { detectDeviceEmail(context) }
+        timeTv = makeText(detectedEmail, 8.8f, Color.argb(210, 215, 235, 255), false)
+        accTextCol.addView(dateTv)
+        accTextCol.addView(timeTv)
+        accountPill.addView(accTextCol)
+        addView(accountPill)
 
         addView(
             View(context).apply { setBackgroundColor(Color.argb(65, 255, 255, 255)) },
@@ -123,14 +149,11 @@ class TopNavBar(
 
         addView(View(context), LayoutParams(0, 1, 1f))
 
-        // Crisp Vector Voice Pill
         val voicePill = makeVectorPill("mic", "Voice Search", Color.rgb(120, 195, 255)).apply {
             setOnClickListener { callbacks.onVoiceSearch() }
         }
         addView(voicePill, LayoutParams(-2, dp(38)))
-
-        // Crisp Vector RAM % Pill
-        ramTv = makeText("RAM --%", 12.5f, Color.WHITE, true)
+                ramTv = makeText("RAM --%", 12.5f, Color.WHITE, true)
         val ramPill = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
@@ -152,7 +175,6 @@ class TopNavBar(
         }
         addView(ramPill, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
-        // Crisp Vector Wi-Fi Pill + Hanging SSID Bubble
         val wifiWrapper = FrameLayout(context).apply {
             clipChildren = false
             clipToPadding = false
@@ -202,7 +224,6 @@ class TopNavBar(
         )
         addView(wifiWrapper, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
-        // 4 Vector Circle Action Buttons (Alerts, Customize, Quick Settings, Power)
         addView(makeVectorCircleButton("bell", Color.rgb(255, 210, 95)) { callbacks.onAlertsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
         addView(makeVectorCircleButton("sparkle", Color.rgb(175, 145, 255)) { callbacks.onCustomizeClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
         addView(makeVectorCircleButton("gear", Color.WHITE) { callbacks.onQuickSettingsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
@@ -212,13 +233,22 @@ class TopNavBar(
     }
 
     fun createFloatingNudgeView(): TextView = nudgeOverlayBubble
+
     private fun updateClockRamAndWifi() {
-        val now = Date()
-        dateTv.text = SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(now)
-        timeTv.text = SimpleDateFormat("h:mm a", Locale.getDefault()).format(now)
+        dateTv.text = lp.userName.ifBlank { "Home Profile" }
+        timeTv.text = lp.userEmail.ifBlank { detectDeviceEmail(context) }
         refreshGreeting()
         updateRamInfo()
         updateWifiVisualState()
+    }
+
+    private fun detectDeviceEmail(ctx: Context): String {
+        return try {
+            val am = android.accounts.AccountManager.get(ctx)
+            am.accounts.firstOrNull { it.name.contains("@") }?.name ?: "Signed-in Account"
+        } catch (_: Exception) {
+            "Signed-in Account"
+        }
     }
 
     private fun updateRamInfo() {
@@ -236,9 +266,10 @@ class TopNavBar(
     }
 
     @Suppress("DEPRECATION")
+    private var lastShownSsid = ""
     private fun updateWifiVisualState() {
         val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val connectedSsid = WifiPanelBuilder.getConnectedSsid(context, wm)
+        val connectedSsid = TileThemePalette.getConnectedSsid(context).takeIf { it != "Wi-Fi" }
         val isWifiEnabling = try { wm?.wifiState == WifiManager.WIFI_STATE_ENABLING } catch (_: Exception) { false }
 
         val newMode = when {
@@ -268,7 +299,7 @@ class TopNavBar(
                     setStroke(dp(2), green)
                     cornerRadius = LauncherUtils.dpF(context, 22f)
                 }
-                wifiBubbleTv.text = "● $connectedSsid"
+                wifiBubbleTv.text = " $connectedSsid"
                 wifiBubbleTv.alpha = 1f
                 wifiBubbleTv.translationY = 0f
                 wifiBubbleTv.scaleX = 1f
@@ -353,7 +384,7 @@ class TopNavBar(
                     .translationY(-dp(12).toFloat())
                     .scaleX(1.16f)
                     .scaleY(0.80f)
-                    .setDuration(650L)
+                                        .setDuration(650L)
                     .setInterpolator(LauncherUtils.SILKY_EASE)
                     .withEndAction { wifiBubbleTv.visibility = View.GONE }
                     .start()
@@ -401,8 +432,7 @@ class TopNavBar(
             receiverRegistered = false
         }
     }
-
-    private fun makeVectorPill(icon: String, label: String, iconTint: Int) = LinearLayout(context).apply {
+        private fun makeVectorPill(icon: String, label: String, iconTint: Int) = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
         setPadding(dp(14), 0, dp(15), 0)

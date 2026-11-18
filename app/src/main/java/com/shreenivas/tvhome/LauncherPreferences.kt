@@ -16,13 +16,15 @@ class LauncherPreferences(context: Context) {
         const val PREF_BADGE = "icon_badge"
         const val PREF_COLUMNS = "grid_columns"
         const val PREF_PANEL_WIDTH = "panel_width_pct"
-        const val PREF_WALLPAPER = "wallpaper_uri"
+        const val PREF_WALLPAPER = "custom_wallpaper_uri"
         const val PREF_FAVORITES = "favorites"
         const val PREF_FAVORITES_ORDER = "favorites_ordered_list"
         const val PREF_HIDDEN_APPS = "hidden_apps_set"
         const val PREF_USER_NAME = "launcher_user_name"
         const val PREF_GREETING_PHRASE = "launcher_greeting_phrase"
         const val PREF_SORT_ASC = "sort_ascending"
+        val ACCENT_KEYS = listOf("royal", "magenta", "purple", "emerald", "sunset")
+        val ACCENT_LABELS = listOf("Royal", "Pink", "Purple", "Mint", "Gold")
     }
 
     val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -94,6 +96,11 @@ class LauncherPreferences(context: Context) {
     var weatherCity: String
         get() = prefs.getString("weather_city", "") ?: ""
         set(value) = prefs.edit().putString("weather_city", value).apply()
+
+    var userEmail: String
+        get() = prefs.getString("user_email", "") ?: ""
+        set(value) = prefs.edit().putString("user_email", value).apply()
+        
         
     // Preserves exact custom user ordering for Favorites
     fun getOrderedFavorites(): MutableList<String> {

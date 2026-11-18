@@ -13,10 +13,8 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.view.Gravity
 import android.view.KeyEvent
@@ -85,7 +83,6 @@ class MainActivity : Activity() {
 
         buildScreen()
         NightNudgeReceiver.scheduleNextNudge(this)
-        checkPermissionsWithExplanation()
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -94,31 +91,44 @@ class MainActivity : Activity() {
             addDataScheme("package")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pkgReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(pkgReceiver, filter, RECEIVER_EXPORTED)
         } else {
             registerReceiver(pkgReceiver, filter)
         }
+        checkAndExplainPermissions()
     }
-        private fun checkPermissionsWithExplanation() {
-        val needLoc = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        val needOverlay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)
-        if (!needLoc && !needOverlay) return
 
-        val msg = buildString {
-            append("To give you the best TV experience, Shree TV Home needs:\n\n")
-            if (needLoc) append("• Location Access: Required by Android TV to display your connected Wi-Fi network name & local weather.\n\n")
-            if (needOverlay) append("• Display Over Other Apps: Shows gentle bedtime reminder bubbles at night while watching videos.")
+    private fun checkAndExplainPermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val needed = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.GET_ACCOUNTS
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            needed.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Optional Permissions")
-            .setMessage(msg.trim())
-            .setPositiveButton("Allow") { _, _ ->
-                if (needLoc) requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1002)
-                if (needOverlay) {
-                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+        val missing = needed.filter {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }
+        val alreadyPrompted = lp.prefs.getBoolean("perm_rationale_shown", false)
+
+        if (missing.isNotEmpty() && !alreadyPrompted) {
+            lp.prefs.edit().putBoolean("perm_rationale_shown", true).apply()
+            AlertDialog.Builder(this)
+                .setTitle("Permissions Required for Full Experience")
+                .setMessage(
+                    "• Location: To detect your local city for live weather & scan nearby Wi-Fi networks.\n\n" +
+                    "• Account Info: To display your signed-in profile name & email on the top bar.\n\n" +
+                    "• Bluetooth: To show connected remotes, speakers & audio devices."
+                )
+                .setPositiveButton("Allow Permissions") { _, _ ->
+                    requestPermissions(missing.toTypedArray(), 101)
                 }
-            }.setNegativeButton("Later", null).show()
+                .setNegativeButton("Later", null)
+                .show()
+        }
     }
 
     override fun onDestroy() {
@@ -147,8 +157,7 @@ class MainActivity : Activity() {
             super.onBackPressed()
         }
     }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar)) {
             return true
         }
@@ -202,7 +211,8 @@ class MainActivity : Activity() {
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
         mainPage.addView(topNavBar)
-                val contentArea = FrameLayout(this)
+
+        val contentArea = FrameLayout(this)
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val rightStageW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
@@ -333,7 +343,7 @@ class MainActivity : Activity() {
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
-        contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
+                contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
@@ -372,7 +382,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyWallpaperOnly() {
-        if (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
+        while (rootLayout.childCount > 0 && rootLayout.getChildAt(0) !== mainPage) {
             rootLayout.removeViewAt(0)
         }
         LauncherBackground.apply(this, rootLayout, lp)
@@ -395,10 +405,11 @@ class MainActivity : Activity() {
                 override fun onHideApp(pkg: String, label: String) {
                     val hidden = lp.getHiddenApps().apply { add(pkg) }; lp.setHiddenApps(hidden)
                     Toast.makeText(this@MainActivity, "$label hidden", Toast.LENGTH_SHORT).show()
-                refreshApps(true)
+                    refreshApps(true)
+                }
             }
-        }
-    )
+        )
     }
+
     private fun dp(value: Int) = LauncherUtils.dp(this, value)
 }

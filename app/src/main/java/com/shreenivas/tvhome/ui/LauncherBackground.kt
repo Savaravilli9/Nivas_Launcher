@@ -35,7 +35,16 @@ object LauncherBackground {
 
     val MANUAL_NAMES = listOf("Morning Mist", "Pastel Silk", "Golden Sunset", "Emerald Aqua", "Rainy Mist", "Royal Moon")
     val MANUAL_KEYS = listOf(MODE_MORNING, MODE_PASTEL, MODE_SUNSET, MODE_AQUA, MODE_RAIN, MODE_COSMOS)
-
+    val MANUAL_ICONS = listOf("☀️", "🌸", "🌇", "🌊", "🌧️", "🌙")
+    val MANUAL_SWATCHES = listOf(
+        intArrayOf(Color.rgb(125, 195, 255), Color.rgb(245, 198, 165)),
+        intArrayOf(Color.rgb(185, 165, 245), Color.rgb(155, 225, 205)),
+        intArrayOf(Color.rgb(195, 68, 118), Color.rgb(255, 152, 78)),
+        intArrayOf(Color.rgb(12, 115, 152), Color.rgb(38, 192, 172)),
+        intArrayOf(Color.rgb(24, 58, 92), Color.rgb(65, 135, 175)),
+        intArrayOf(Color.rgb(16, 24, 54), Color.rgb(48, 64, 125))
+    )
+    
     private var activeWallpaperView: ImageView? = null
     private var activePhotoAuraView: PhotoWeatherAuraView? = null
     private var activeCanvasView: DynamicCanvasView? = null

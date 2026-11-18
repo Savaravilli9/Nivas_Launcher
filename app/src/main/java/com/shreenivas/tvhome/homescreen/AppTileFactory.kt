@@ -28,6 +28,8 @@ object AppTileFactory {
 
     private val iconCache = ConcurrentHashMap<String, Drawable>()
     private val labelCache = ConcurrentHashMap<String, String>()
+    private var lastFocusedX = -1f
+    private var lastFocusedY = -1f
 
     fun clearAssetCache() {
         iconCache.clear()
@@ -120,7 +122,6 @@ object AppTileFactory {
             setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
         wrapper.addView(innerCard, cardParams)
-
         val badge = TextView(ctx).apply {
             tag = "tile_badge"
             textSize = 9.5f
@@ -135,20 +136,31 @@ object AppTileFactory {
         })
         applyBadgeState(badge, lp, isFav)
 
-        wrapper.setOnFocusChangeListener { _, hasFocus ->
-        MotionEngine.animateFocus(innerCard, hasFocus, lp.motionStyle, 1.14f, 14f)
+        wrapper.setOnFocusChangeListener { v, hasFocus ->
+            val dx = if (lastFocusedX >= 0f) (v.x - lastFocusedX).coerceIn(-1f, 1f) else 0f
+            val dy = if (lastFocusedY >= 0f) (v.y - lastFocusedY).coerceIn(-1f, 1f) else 0f
+            if (hasFocus) {
+                lastFocusedX = v.x
+                lastFocusedY = v.y
+            }
+
+            MotionEngine.animateFocus(innerCard, hasFocus, lp.motionStyle, 1.13f, 16f, dx, dy)
 
             if (hasFocus) {
-                innerCard.elevation = LauncherUtils.dpF(ctx, 14f)
+                innerCard.elevation = LauncherUtils.dpF(ctx, 16f)
                 tv.isSelected = true
                 breathingAnim?.cancel()
-                breathingAnim = ValueAnimator.ofFloat(0.96f, 1.0f).apply {
-                    duration = 850L
+                breathingAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 1100L
                     repeatMode = ValueAnimator.REVERSE
                     repeatCount = ValueAnimator.INFINITE
                     interpolator = AccelerateDecelerateInterpolator()
-                    addUpdateListener {
-                        innerCard.alpha = it.animatedValue as Float
+                    addUpdateListener { anim ->
+                        val f = anim.animatedValue as Float
+                        val pulseScale = 1.12f + (0.045f * f)
+                        innerCard.scaleX = pulseScale
+                        innerCard.scaleY = pulseScale
+                        innerCard.alpha = 0.88f + (0.12f * f)
                     }
                     start()
                 }
@@ -217,7 +229,7 @@ object AppTileFactory {
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
-        if (lp.badgeMode != "none") {
+        if (isFav && lp.badgeMode != "none") {
             badge.visibility = View.VISIBLE
             badge.text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
             badge.setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
