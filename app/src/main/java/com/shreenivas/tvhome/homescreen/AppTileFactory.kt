@@ -1,11 +1,11 @@
 package com.shreenivas.tvhome.homescreen
 
-import com.shreenivas.tvhome.MotionEngine
-
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
@@ -22,18 +22,21 @@ import android.widget.TextView
 import android.widget.Toast
 import com.shreenivas.tvhome.LauncherPreferences
 import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.MotionEngine
 import java.util.concurrent.ConcurrentHashMap
 
 object AppTileFactory {
 
     private val iconCache = ConcurrentHashMap<String, Drawable>()
     private val labelCache = ConcurrentHashMap<String, String>()
+    private val colorCache = ConcurrentHashMap<String, Int>()
     private var lastFocusedX = -1f
     private var lastFocusedY = -1f
 
     fun clearAssetCache() {
         iconCache.clear()
         labelCache.clear()
+        colorCache.clear()
     }
 
     interface TileActions {
@@ -52,6 +55,49 @@ object AppTileFactory {
         return iconCache.getOrPut(pkg) { info.loadIcon(pm) }
     }
 
+    private fun getAppDominantColor(pkg: String, drawable: Drawable, fallback: Int): Int {
+        return colorCache.getOrPut(pkg) {
+            extractVibrantColor(drawable, fallback)
+        }
+    }
+
+    private fun extractVibrantColor(drawable: Drawable, fallback: Int): Int {
+        return try {
+            val bmp = Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            drawable.setBounds(0, 0, 24, 24)
+            drawable.draw(canvas)
+
+            var bestColor = fallback
+            var maxScore = -1f
+
+            for (x in 2 until 22 step 2) {
+                for (y in 2 until 22 step 2) {
+                    val px = bmp.getPixel(x, y)
+                    if (Color.alpha(px) < 160) continue
+                    val hsv = FloatArray(3)
+                    Color.colorToHSV(px, hsv)
+                    val sat = hsv[1]
+                    val valBright = hsv[2]
+                    if (valBright < 0.25f || (sat < 0.18f && valBright > 0.85f)) continue
+                    val score = (sat * 2.2f) + valBright
+                    if (score > maxScore) {
+                        maxScore = score
+                        bestColor = px
+                    }
+                }
+            }
+            bmp.recycle()
+            val outHsv = FloatArray(3)
+            Color.colorToHSV(bestColor, outHsv)
+            outHsv[1] = maxOf(outHsv[1], 0.55f)
+            outHsv[2] = maxOf(outHsv[2], 0.88f)
+            Color.HSVToColor(255, outHsv)
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+
     fun create(
         ctx: Context, pm: PackageManager, lp: LauncherPreferences,
         info: ResolveInfo, isFavRow: Boolean, isFav: Boolean,
@@ -61,6 +107,7 @@ object AppTileFactory {
         val pkg = info.activityInfo.packageName
         val label = getCachedLabel(pm, info)
         val icon = getCachedIcon(pm, info)
+        val appColor = getAppDominantColor(pkg, icon, lp.accentColor)
 
         var breathingAnim: ValueAnimator? = null
 
@@ -85,10 +132,9 @@ object AppTileFactory {
             isFocusable = false
             isClickable = false
             clipChildren = false
-            setStyle(lp.accentColor, lp.tileShape, lp.tileColor)
+            setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appColor)
         }
-
-        val contentBox = LinearLayout(ctx).apply {
+                val contentBox = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isFocusable = false
@@ -122,6 +168,7 @@ object AppTileFactory {
             setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
         wrapper.addView(innerCard, cardParams)
+
         val badge = TextView(ctx).apply {
             tag = "tile_badge"
             textSize = 9.5f
@@ -144,6 +191,7 @@ object AppTileFactory {
                 lastFocusedY = v.y
             }
 
+            innerCard.setFocusState(hasFocus)
             MotionEngine.animateFocus(innerCard, hasFocus, lp.motionStyle, 1.13f, 16f, dx, dy)
 
             if (hasFocus) {
@@ -151,7 +199,7 @@ object AppTileFactory {
                 tv.isSelected = true
                 breathingAnim?.cancel()
                 breathingAnim = ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 1100L
+                    duration = 1150L
                     repeatMode = ValueAnimator.REVERSE
                     repeatCount = ValueAnimator.INFINITE
                     interpolator = AccelerateDecelerateInterpolator()
@@ -160,7 +208,7 @@ object AppTileFactory {
                         val pulseScale = 1.12f + (0.045f * f)
                         innerCard.scaleX = pulseScale
                         innerCard.scaleY = pulseScale
-                        innerCard.alpha = 0.88f + (0.12f * f)
+                        innerCard.updateGlowPulse(f)
                     }
                     start()
                 }
@@ -169,7 +217,6 @@ object AppTileFactory {
                 innerCard.elevation = 0f
                 breathingAnim?.cancel()
                 breathingAnim = null
-                innerCard.alpha = 1.0f
             }
         }
 
@@ -215,7 +262,9 @@ object AppTileFactory {
     }
 
     fun updateTileAppearance(ctx: Context, wrapper: View, lp: LauncherPreferences, isFav: Boolean) {
-        wrapper.findViewWithTag<GlowTileLayout>("glow_card")?.setStyle(lp.accentColor, lp.tileShape, lp.tileColor)
+        val rawTag = (wrapper.tag as? String)?.removePrefix("fav_")?.removePrefix("all_") ?: ""
+        val appCol = colorCache[rawTag] ?: lp.accentColor
+        wrapper.findViewWithTag<GlowTileLayout>("glow_card")?.setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appCol)
         wrapper.findViewWithTag<ImageView>("tile_icon")?.let { iv ->
             val size = getIconSizePx(ctx, lp.tileSize)
             if (iv.layoutParams.width != size) {
