@@ -370,8 +370,8 @@ class AmbientStageWidget(
         private var accent = Color.rgb(92, 184, 255)
 
         fun updateAccent(col: Int) { accent = col; invalidate() }
-
-        override fun onDraw(canvas: Canvas) {
+        
+    override fun onDraw(canvas: Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
             if (w <= 0f || h <= 0f) return
             val cx = w / 2f; val cy = h / 2f
@@ -386,7 +386,6 @@ class AmbientStageWidget(
 
             for (i in 0 until 12) {
                 val ang = Math.toRadians((i * 30 - 90).toDouble())
-                                val ang = Math.toRadians((i * 30 - 90).toDouble())
                 val isMajor = i % 3 == 0
                 tickPaint.strokeWidth = LauncherUtils.dpF(context, if (isMajor) 2.6f else 1.4f)
                 tickPaint.color = if (isMajor) accent else Color.argb(150, 220, 235, 255)
@@ -411,6 +410,16 @@ class AmbientStageWidget(
             handPaint.color = accent
             canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 4f), handPaint)
         }
+
+        private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {
+            val rad = Math.toRadians(deg.toDouble())
+            handPaint.style = Paint.Style.STROKE
+            handPaint.strokeWidth = LauncherUtils.dpF(context, strokeDp)
+            handPaint.color = col
+            canvas.drawLine(cx, cy, (cx + cos(rad) * len).toFloat(), (cy + sin(rad) * len).toFloat(), handPaint)
+        }
+    }
+}
 
         private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {
             val rad = Math.toRadians(deg.toDouble())
