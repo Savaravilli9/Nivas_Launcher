@@ -93,17 +93,47 @@ class TopNavBar(
         clipToPadding = false
         setPadding(0, dp(4), 0, dp(16))
 
-        val clockBox = LinearLayout(context).apply {
-            orientation = VERTICAL
-            setPadding(dp(12), dp(5), dp(14), dp(5))
+        val accountPill = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isFocusable = true
+            isClickable = true
+            setPadding(dp(8), dp(5), dp(14), dp(5))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(Color.argb(85, 255, 255, 255), Color.argb(35, 255, 255, 255))
             ).apply {
-                cornerRadius = LauncherUtils.dpF(context, 14f)
+                cornerRadius = LauncherUtils.dpF(context, 20f)
                 setStroke(dp(1), Color.argb(95, 255, 255, 255))
             }
+            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.05f, 4f) }
+            setOnClickListener { callbacks.onCustomizeClick() }
         }
+        val avatarCircle = TextView(context).apply {
+            val initial = lp.userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "U"
+            text = initial
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(lp.accentColor)
+                setStroke(dp(1), Color.WHITE)
+            }
+        }
+        accountPill.addView(avatarCircle, LayoutParams(dp(26), dp(26)).apply { rightMargin = dp(8) })
+
+        val accTextCol = LinearLayout(context).apply { orientation = VERTICAL }
+        dateTv = makeText(lp.userName.ifBlank { "Home Profile" }, 11f, Color.WHITE, true)
+        val detectedEmail = lp.userEmail.ifBlank { detectDeviceEmail(context) }
+        timeTv = makeText(detectedEmail, 8.8f, Color.argb(210, 215, 235, 255), false)
+        accTextCol.addView(dateTv)
+        accTextCol.addView(timeTv)
+        accountPill.addView(accTextCol)
+        addView(accountPill)
+        
+        
         dateTv = makeText("", 12.5f, Color.WHITE, true).apply {
             setShadowLayer(4f, 0f, 2f, Color.argb(140, 0, 0, 0))
         }
@@ -223,12 +253,20 @@ class TopNavBar(
 
     fun createFloatingNudgeView(): TextView = nudgeOverlayBubble
     private fun updateClockRamAndWifi() {
-        val now = Date()
-        dateTv.text = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(now)
-        timeTv.text = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
+        dateTv.text = lp.userName.ifBlank { "Home Profile" }
+        timeTv.text = lp.userEmail.ifBlank { detectDeviceEmail(context) }
         refreshGreeting()
         updateRamInfo()
         updateWifiVisualState()
+    }
+
+    private fun detectDeviceEmail(ctx: Context): String {
+        return try {
+            val am = android.accounts.AccountManager.get(ctx)
+            am.accounts.firstOrNull { it.name.contains("@") }?.name ?: "Signed-in Account"
+        } catch (_: Exception) {
+            "Signed-in Account"
+        }
     }
 
     private fun updateRamInfo() {
