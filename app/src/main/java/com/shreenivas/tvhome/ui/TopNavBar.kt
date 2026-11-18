@@ -49,8 +49,7 @@ class TopNavBar(
         fun onQuickSettingsClick()
         fun onPowerClick()
     }
-
-    private lateinit var profileNameTv: TextView
+    
     private lateinit var avatarImageView: ImageView
     private lateinit var avatarInitialTv: TextView
     private lateinit var greetingCard: GreetingShineCard
