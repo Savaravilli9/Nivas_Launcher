@@ -138,9 +138,10 @@ class TopNavBar(
             setShadowLayer(4f, 0f, 2f, Color.argb(140, 0, 0, 0))
         }
         timeTv = makeText("", 10.5f, lp.accentColor, true)
-        clockBox.addView(dateTv)
-        clockBox.addView(timeTv)
-        addView(clockBox)
+        accTextCol.addView(dateTv)
+        accTextCol.addView(timeTv)
+        accountPill.addView(accTextCol)
+        addView(accountPill)
 
         addView(
             View(context).apply { setBackgroundColor(Color.argb(65, 255, 255, 255)) },
