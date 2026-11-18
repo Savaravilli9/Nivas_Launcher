@@ -1,7 +1,6 @@
 package com.shreenivas.tvhome.ui
 
 import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.panels.WifiPanelBuilder
 import com.shreenivas.tvhome.LauncherUtils
 
 import android.animation.ValueAnimator
@@ -25,9 +24,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 
 class TopNavBar(
@@ -60,7 +56,6 @@ class TopNavBar(
     private var swingAnim: ValueAnimator? = null
     private var breatheAnim: ValueAnimator? = null
     private var wifiStateMode = -1
-    private var lastShown = ""
     private var showConnectingAlt = false
 
     private val statusReceiver = object : BroadcastReceiver() {
@@ -132,16 +127,6 @@ class TopNavBar(
         accTextCol.addView(timeTv)
         accountPill.addView(accTextCol)
         addView(accountPill)
-        
-        
-        dateTv = makeText("", 12.5f, Color.WHITE, true).apply {
-            setShadowLayer(4f, 0f, 2f, Color.argb(140, 0, 0, 0))
-        }
-        timeTv = makeText("", 10.5f, lp.accentColor, true)
-        accTextCol.addView(dateTv)
-        accTextCol.addView(timeTv)
-        accountPill.addView(accTextCol)
-        addView(accountPill)
 
         addView(
             View(context).apply { setBackgroundColor(Color.argb(65, 255, 255, 255)) },
@@ -164,14 +149,11 @@ class TopNavBar(
 
         addView(View(context), LayoutParams(0, 1, 1f))
 
-        // Crisp Vector Voice Pill
         val voicePill = makeVectorPill("mic", "Voice Search", Color.rgb(120, 195, 255)).apply {
             setOnClickListener { callbacks.onVoiceSearch() }
         }
         addView(voicePill, LayoutParams(-2, dp(38)))
-
-        // Crisp Vector RAM % Pill
-        ramTv = makeText("RAM --%", 12.5f, Color.WHITE, true)
+                ramTv = makeText("RAM --%", 12.5f, Color.WHITE, true)
         val ramPill = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
@@ -193,7 +175,6 @@ class TopNavBar(
         }
         addView(ramPill, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
-        // Crisp Vector Wi-Fi Pill + Hanging SSID Bubble
         val wifiWrapper = FrameLayout(context).apply {
             clipChildren = false
             clipToPadding = false
@@ -243,7 +224,6 @@ class TopNavBar(
         )
         addView(wifiWrapper, LayoutParams(-2, dp(38)).apply { leftMargin = dp(8) })
 
-        // 4 Vector Circle Action Buttons (Alerts, Customize, Quick Settings, Power)
         addView(makeVectorCircleButton("bell", Color.rgb(255, 210, 95)) { callbacks.onAlertsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
         addView(makeVectorCircleButton("sparkle", Color.rgb(175, 145, 255)) { callbacks.onCustomizeClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
         addView(makeVectorCircleButton("gear", Color.WHITE) { callbacks.onQuickSettingsClick() }, LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(8) })
@@ -253,6 +233,7 @@ class TopNavBar(
     }
 
     fun createFloatingNudgeView(): TextView = nudgeOverlayBubble
+
     private fun updateClockRamAndWifi() {
         dateTv.text = lp.userName.ifBlank { "Home Profile" }
         timeTv.text = lp.userEmail.ifBlank { detectDeviceEmail(context) }
@@ -283,7 +264,7 @@ class TopNavBar(
             ramTv.text = "RAM"
         }
     }
- 
+
     @Suppress("DEPRECATION")
     private var lastShownSsid = ""
     private fun updateWifiVisualState() {
@@ -403,7 +384,7 @@ class TopNavBar(
                     .translationY(-dp(12).toFloat())
                     .scaleX(1.16f)
                     .scaleY(0.80f)
-                    .setDuration(650L)
+                                        .setDuration(650L)
                     .setInterpolator(LauncherUtils.SILKY_EASE)
                     .withEndAction { wifiBubbleTv.visibility = View.GONE }
                     .start()
@@ -451,8 +432,7 @@ class TopNavBar(
             receiverRegistered = false
         }
     }
-
-    private fun makeVectorPill(icon: String, label: String, iconTint: Int) = LinearLayout(context).apply {
+        private fun makeVectorPill(icon: String, label: String, iconTint: Int) = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
         setPadding(dp(14), 0, dp(15), 0)
