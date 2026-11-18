@@ -65,15 +65,7 @@ object WallpaperEditorPanel {
         panel.addView(autoRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
 
         addSection(ctx, panel, "LIVE CANVAS SCENES")
-        val sceneSwatches = listOf(
-            intArrayOf(Color.rgb(125, 195, 255), Color.rgb(245, 198, 165)),
-            intArrayOf(Color.rgb(185, 165, 245), Color.rgb(155, 225, 205)),
-            intArrayOf(Color.rgb(195, 68, 118), Color.rgb(255, 152, 78)),
-            intArrayOf(Color.rgb(12, 115, 152), Color.rgb(38, 192, 172)),
-            intArrayOf(Color.rgb(24, 58, 92), Color.rgb(65, 135, 175)),
-            intArrayOf(Color.rgb(16, 24, 54), Color.rgb(48, 64, 125))
-        )
-        val sceneIcons = listOf("☀️", "🌸", "🌇", "🌊", "🌧️", "🌙")
+        val defaultSwatch = intArrayOf(Color.rgb(42, 68, 128), Color.rgb(22, 34, 72))
 
         for (i in LauncherBackground.MANUAL_NAMES.indices step 2) {
             val row = LinearLayout(ctx).apply {
@@ -83,11 +75,13 @@ object WallpaperEditorPanel {
             }
             for (j in i until minOf(i + 2, LauncherBackground.MANUAL_NAMES.size)) {
                 val key = LauncherBackground.MANUAL_KEYS[j]
+                val icon = LauncherBackground.MANUAL_ICONS.getOrElse(j) { "🎨" }
+                val swatch = LauncherBackground.MANUAL_SWATCHES.getOrElse(j) { defaultSwatch }
                 val tagStr = "wp_$key"
                 val sel = !hasCustomImage && curMode == key
                 val card = makeVisualCard(
-                    ctx, lp, tagStr, sceneIcons[j], LauncherBackground.MANUAL_NAMES[j],
-                    if (sel) "Active" else "Tap to set", sceneSwatches[j], sel
+                    ctx, lp, tagStr, icon, LauncherBackground.MANUAL_NAMES[j],
+                    if (sel) "Active" else "Tap to set", swatch, sel
                 ) {
                     lastFocusedTag = tagStr
                     lp.prefs.edit().remove(LauncherPreferences.PREF_WALLPAPER).apply()
