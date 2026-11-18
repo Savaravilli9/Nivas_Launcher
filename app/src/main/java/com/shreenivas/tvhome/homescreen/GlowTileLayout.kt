@@ -1,10 +1,5 @@
 package com.shreenivas.tvhome.homescreen
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,11 +7,11 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
-import android.graphics.Rect
-import android.graphics.RectF
 import android.graphics.Shader
-import android.view.animation.AccelerateDecelerateInterpolator
+import android.graphics.RectF
 import android.widget.FrameLayout
+import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.ui.TileThemePalette
 
 class GlowTileLayout(context: Context) : FrameLayout(context) {
     private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -24,15 +19,16 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
     private val spotlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val outerHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    
+    private val deepAuraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
     private val rectF = RectF()
     private val sheenRect = RectF()
     private val shapePath = Path()
 
     private var tileFocused = false
-    private var pulseAlpha = 0.4f
-    private var breathingAnimator: ValueAnimator? = null
+    private var glowIntensity = 0f
     private var accentColor = Color.rgb(92, 184, 255)
+    private var appDominantColor = Color.rgb(92, 184, 255)
     private var tileShape = "squircle"
     private var tileKey = "frost"
 
@@ -42,14 +38,30 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         clipToPadding = false
     }
 
-    fun setStyle(color: Int, shape: String?, themeKey: String?) {
+    fun setStyle(color: Int, shape: String?, themeKey: String?, dominantColor: Int = color) {
         accentColor = color
+        appDominantColor = dominantColor
         tileShape = shape ?: "squircle"
-        this.tileKey = themeKey ?: "frost"
+        tileKey = themeKey ?: "frost"
         if (width > 0 && height > 0) {
             buildShapePath(width.toFloat(), height.toFloat())
             updateShaders(width.toFloat(), height.toFloat())
         }
+        invalidate()
+    }
+
+    fun setFocusState(focused: Boolean) {
+        if (tileFocused == focused) return
+        tileFocused = focused
+        if (!focused) glowIntensity = 0f
+        if (width > 0 && height > 0) {
+            updateShaders(width.toFloat(), height.toFloat())
+        }
+        invalidate()
+    }
+
+    fun updateGlowPulse(intensity: Float) {
+        glowIntensity = intensity.coerceIn(0f, 1f)
         invalidate()
     }
 
@@ -63,22 +75,22 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
 
     private fun updateShaders(w: Float, h: Float) {
         if (w <= 0f || h <= 0f) return
-        
+
         val colors = TileThemePalette.getTopBottomColors(tileKey, tileFocused)
         cardPaint.shader = LinearGradient(0f, 0f, 0f, h, colors, null, Shader.TileMode.CLAMP)
 
         sheenRect.set(0f, 0f, w, h * 0.50f)
         glassSheenPaint.shader = LinearGradient(
             0f, 0f, 0f, h * 0.50f,
-            Color.argb(if (tileFocused) 115 else 68, 255, 255, 255),
+            Color.argb(if (tileFocused) 125 else 68, 255, 255, 255),
             Color.argb(6, 255, 255, 255),
             Shader.TileMode.CLAMP
         )
 
         if (tileFocused) {
-            val centerGlow = LauncherUtils.withAlpha(accentColor, 130)
+            val centerGlow = LauncherUtils.withAlpha(appDominantColor, 165)
             spotlightPaint.shader = RadialGradient(
-                w / 2f, h * 0.42f, maxOf(w, h) * 0.58f,
+                w / 2f, h * 0.45f, maxOf(w, h) * 0.68f,
                 centerGlow, Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
             borderPaint.shader = null
@@ -90,45 +102,6 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
                 Shader.TileMode.CLAMP
             )
         }
-    }
-
-    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
-        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        tileFocused = gainFocus
-
-        updateShaders(width.toFloat(), height.toFloat())
-
-        animate().cancel()
-        animate()
-            .scaleX(if (gainFocus) 1.08f else 1.0f)
-            .scaleY(if (gainFocus) 1.08f else 1.0f)
-            .translationZ(if (gainFocus) dp(12f) else 0f)
-            .setDuration(if (gainFocus) 220L else 150L)
-            .setInterpolator(LauncherUtils.FLUID_SPRING)
-            .start()
-
-        if (gainFocus) startBreathing() else stopBreathing()
-        invalidate()
-    }
-
-    private fun startBreathing() {
-        breathingAnimator?.cancel()
-        breathingAnimator = ValueAnimator.ofFloat(0.28f, 0.72f).apply {
-            duration = 1300L
-            repeatMode = ValueAnimator.REVERSE
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener {
-                pulseAlpha = it.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
-    }
-
-    private fun stopBreathing() {
-        breathingAnimator?.cancel()
-        pulseAlpha = 0f
     }
 
     private fun buildShapePath(w: Float, h: Float) {
@@ -163,6 +136,17 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
+        if (tileFocused) {
+            // Outer soft ambient aura using App's Dominant Color
+            deepAuraPaint.strokeWidth = dp(11f) + (dp(5f) * glowIntensity)
+            deepAuraPaint.color = LauncherUtils.withAlpha(appDominantColor, (45 + 75 * glowIntensity).toInt())
+            canvas.drawPath(shapePath, deepAuraPaint)
+
+            outerHaloPaint.strokeWidth = dp(5f) + (dp(2.5f) * glowIntensity)
+            outerHaloPaint.color = LauncherUtils.withAlpha(appDominantColor, (120 + 115 * glowIntensity).toInt())
+            canvas.drawPath(shapePath, outerHaloPaint)
+        }
+
         canvas.drawPath(shapePath, cardPaint)
 
         canvas.save()
@@ -170,17 +154,14 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         canvas.drawRect(sheenRect, glassSheenPaint)
 
         if (tileFocused) {
+            spotlightPaint.alpha = (180 + 75 * glowIntensity).toInt()
             canvas.drawRect(0f, 0f, w, h, spotlightPaint)
         }
         canvas.restore()
 
         if (tileFocused) {
-            outerHaloPaint.strokeWidth = dp(5.5f)
-            outerHaloPaint.color = LauncherUtils.withAlpha(accentColor, (pulseAlpha * 255).toInt())
-            canvas.drawPath(shapePath, outerHaloPaint)
-
-            borderPaint.strokeWidth = dp(2.2f)
-            borderPaint.color = accentColor
+            borderPaint.strokeWidth = dp(2.4f)
+            borderPaint.color = appDominantColor
             canvas.drawPath(shapePath, borderPaint)
         } else {
             borderPaint.strokeWidth = dp(1f)
@@ -188,11 +169,6 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         }
 
         super.onDraw(canvas)
-    }
-
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        stopBreathing()
     }
 
     private fun dp(value: Float) = LauncherUtils.dpF(context, value)
