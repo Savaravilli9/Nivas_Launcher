@@ -390,7 +390,7 @@ class AmbientStageWidget(
                 val wUrl = "https://open-meteo.com\$lat&longitude=\$lon&current_weather=true"
                 val wJson = JSONObject(fetchUrl(wUrl))
                 val cw = wJson.getJSONObject("current_weather")
-                val temp = "\${cw.getDouble("temperature").toInt()}°C"
+                val temp = "${cw.getDouble("temperature").toInt()}°C"
                 val code = cw.getInt("weathercode")
                 val (emoji, desc) = decodeWeatherCode(code)
 
