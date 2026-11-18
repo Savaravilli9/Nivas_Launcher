@@ -122,7 +122,6 @@ object AppTileFactory {
             setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
         }
         wrapper.addView(innerCard, cardParams)
-
         val badge = TextView(ctx).apply {
             tag = "tile_badge"
             textSize = 9.5f
@@ -137,7 +136,7 @@ object AppTileFactory {
         })
         applyBadgeState(badge, lp, isFav)
 
-            wrapper.setOnFocusChangeListener { v, hasFocus ->
+        wrapper.setOnFocusChangeListener { v, hasFocus ->
             val dx = if (lastFocusedX >= 0f) (v.x - lastFocusedX).coerceIn(-1f, 1f) else 0f
             val dy = if (lastFocusedY >= 0f) (v.y - lastFocusedY).coerceIn(-1f, 1f) else 0f
             if (hasFocus) {
@@ -230,7 +229,7 @@ object AppTileFactory {
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
-        if (lp.badgeMode != "none") {
+        if (isFav && lp.badgeMode != "none") {
             badge.visibility = View.VISIBLE
             badge.text = when (lp.badgeMode) { "heart" -> "♥"; "star" -> "★"; else -> "●" }
             badge.setTextColor(if (lp.badgeMode == "blue") Color.CYAN else lp.accentColor)
