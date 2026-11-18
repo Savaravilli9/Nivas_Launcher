@@ -190,7 +190,7 @@ class TopNavBar(
             setOnClickListener {
                 System.gc()
                 updateRamInfo()
-                Toast.makeText(context, "Memory refreshed • \${ramTv.text}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Memory refreshed • ${ramTv.text}", Toast.LENGTH_SHORT).show()
             }
         }
         rowContainer.addView(ramPill, LinearLayout.LayoutParams(-2, barHeight).apply { leftMargin = dp(8) })
