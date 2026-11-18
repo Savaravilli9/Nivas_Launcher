@@ -28,6 +28,8 @@ object AppTileFactory {
 
     private val iconCache = ConcurrentHashMap<String, Drawable>()
     private val labelCache = ConcurrentHashMap<String, String>()
+    private var lastFocusedX = -1f
+    private var lastFocusedY = -1f
 
     fun clearAssetCache() {
         iconCache.clear()
