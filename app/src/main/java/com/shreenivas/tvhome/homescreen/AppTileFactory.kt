@@ -65,20 +65,21 @@ object AppTileFactory {
         val canvas = Canvas(out)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && drawable is AdaptiveIconDrawable) {
-            // Adaptive icons have a 108dp canvas with an 18dp safe-zone inset on each side.
-            // Expanding bounds by 22% crops out the rounded-square mask so the true background fills 100% edge-to-edge!
-            val inset = (size * 0.22f).toInt()
+            // 34% expansion completely crops the AdaptiveIcon mask margin so the icon fills 100% edge-to-edge like Google TV
+            val bgInset = (size * 0.34f).toInt()
             drawable.background?.let { bg ->
-                bg.setBounds(-inset, -inset, size + inset, size + inset)
+                bg.setBounds(-bgInset, -bgInset, size + bgInset, size + bgInset)
                 bg.draw(canvas)
             }
+            val fgInset = (size * 0.24f).toInt()
             drawable.foreground?.let { fg ->
-                val fgInset = (size * 0.14f).toInt()
                 fg.setBounds(-fgInset, -fgInset, size + fgInset, size + fgInset)
                 fg.draw(canvas)
             }
         } else {
-            drawable.setBounds(0, 0, size, size)
+            // Legacy non-adaptive icons: slight 12% zoom to eliminate transparent outer padding
+            val pad = (size * 0.12f).toInt()
+            drawable.setBounds(-pad, -pad, size + pad, size + pad)
             drawable.draw(canvas)
         }
         return out
