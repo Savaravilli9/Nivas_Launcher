@@ -97,7 +97,7 @@ class SideControlDrawer(
             intArrayOf(Color.argb(238, 22, 30, 68), Color.argb(244, 15, 22, 52), Color.argb(248, 10, 15, 38))
         ).apply { cornerRadius = LauncherUtils.dpF(context, 24f); setStroke(dp(1.5f), Color.argb(145, 255, 255, 255)) }
         drawerLayout.elevation = dp(22f).toFloat()
-        scrim.setBackgroundColor(Color.argb(55, 4, 8, 20)); scrim.visibility = View.VISIBLE; drawerLayout.visibility = View.VISIBLE
+        scrim.setBackgroundColor(Color.TRANSPARENT); scrim.visibility = View.VISIBLE; drawerLayout.visibility = View.VISIBLE
 
         setupDrawerSkeleton()
         populateActivePanel(true)
@@ -167,11 +167,13 @@ class SideControlDrawer(
             clipChildren = false
             clipToPadding = false
         }
+        
         activePanel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
-            setPadding(dp(2f), dp(2f), dp(2f), dp(16f))
+            setPadding(dp(6f), dp(6f), dp(6f), dp(20f))
+            }
         }
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
@@ -496,34 +498,67 @@ class SideControlDrawer(
         card.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5f) }); panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
     }
 
-    fun showProfileEditDialog() {
-        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20f), dp(14f), dp(20f), dp(10f)) }
-        val nameInput = EditText(context).apply {
-            isSingleLine = true; hint = "Profile Name (e.g. Shree)"; setText(lp.userName)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-        }
-        val phraseInput = EditText(context).apply {
-            isSingleLine = true; hint = "Custom Greeting Phrase (Optional)"; setText(lp.greetingPhrase)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        }
-        val pickPicBtn = TextView(context).apply {
-            text = "🖼  Choose Custom Profile Picture (3x Avatar)"
-            textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER; isFocusable = true; setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
-            background = glassCardBg(true)
-            setOnClickListener { onPickProfilePic() }
-        }
-        box.addView(nameInput)
-        box.addView(phraseInput, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10f) })
-        box.addView(pickPicBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14f) })
-
-        AlertDialog.Builder(context).setTitle("Profile Name & Avatar").setView(box).setPositiveButton("Save") { _, _ ->
-            lp.userName = nameInput.text.toString().trim()
-            lp.greetingPhrase = phraseInput.text.toString().trim()
-            onLiveRefresh()
-            if (isOpen) populateActivePanel(false)
-        }.setNegativeButton("Cancel", null).show()
+fun showProfileEditDialog() {
+    val box = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(20f), dp(14f), dp(20f), dp(12f))
     }
+    val nameInput = EditText(context).apply {
+        isSingleLine = true
+        hint = "Enter Profile Name"
+        setText(lp.userName)
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+    }
+    box.addView(nameInput)
+
+    val pickPicBtn = TextView(context).apply {
+        text = "🖼  Choose Profile Picture"
+        textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER; isFocusable = true; setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
+        background = glassCardBg(true)
+        setOnClickListener { onPickProfilePic() }
+    }
+    box.addView(pickPicBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12f) })
+
+    val picToolsRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+    val zoomInBtn = TextView(context).apply {
+        text = "Zoom +"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+        setOnClickListener {
+            val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) + 0.15f).coerceAtMost(2.2f)
+            lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
+            onLiveRefresh()
+        }
+    }
+    val zoomOutBtn = TextView(context).apply {
+        text = "Zoom -"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+        setOnClickListener {
+            val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) - 0.15f).coerceAtLeast(1.0f)
+            lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
+            onLiveRefresh()
+        }
+    }
+    val removePicBtn = TextView(context).apply {
+        text = "Remove"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 120, 130))
+        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+        setOnClickListener {
+            lp.prefs.edit().remove("profile_pic_uri").putFloat("profile_pic_zoom", 1.0f).apply()
+            onLiveRefresh()
+            Toast.makeText(context, "Profile picture removed", Toast.LENGTH_SHORT).show()
+        }
+    }
+    picToolsRow.addView(zoomInBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
+    picToolsRow.addView(zoomOutBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
+    picToolsRow.addView(removePicBtn, LinearLayout.LayoutParams(0, -2, 1f))
+    box.addView(picToolsRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f) })
+
+    AlertDialog.Builder(context).setTitle("Profile Settings").setView(box).setPositiveButton("Save") { _, _ ->
+        lp.userName = nameInput.text.toString().trim()
+        onLiveRefresh()
+        if (isOpen) populateActivePanel(false)
+    }.setNegativeButton("Cancel", null).show()
+}
 
     private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
         val card = LinearLayout(context).apply {
