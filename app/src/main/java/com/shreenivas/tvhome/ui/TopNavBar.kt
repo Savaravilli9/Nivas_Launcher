@@ -93,7 +93,7 @@ class TopNavBar(
     init {
         clipChildren = false
         clipToPadding = false
-        setPadding(dp(4), dp(8), dp(6), dp(14))
+        setPadding(dp(4), dp(14), dp(6), dp(12))
         
         val barHeight = dp(38)
         val avatarSize = dp(92) // Large 2.5x Hero Profile Avatar centered on TopNavBar centerline
@@ -253,8 +253,8 @@ class TopNavBar(
         }
         greetingCard.attachOverlayBubble(nudgeOverlayBubble)
 
-        addView(rightControls, FrameLayout.LayoutParams(-2, avatarSize, Gravity.END or Gravity.CENTER_VERTICAL))
-        addView(profileHeroGroup, FrameLayout.LayoutParams(-2, avatarSize, Gravity.START or Gravity.CENTER_VERTICAL))
+        addView(rightControls, FrameLayout.LayoutParams(-2, barHeight, Gravity.END or Gravity.CENTER_VERTICAL))
+        addView(profileHeroGroup, FrameLayout.LayoutParams(-2, barHeight, Gravity.START or Gravity.CENTER_VERTICAL))
 
         post {
             val availableForLeft = width - rightControls.width - dp(16)
