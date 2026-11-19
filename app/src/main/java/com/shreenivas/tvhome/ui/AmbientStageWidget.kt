@@ -165,7 +165,7 @@ class AmbientStageWidget(
         cornerRadius = LauncherUtils.dpF(context, 18f)
         setStroke(dp(if (focused) 2 else 1), if (focused) lp.accentColor else Color.argb(80, 255, 255, 255))
     }
-        private data class CitySuggestion(
+    private data class CitySuggestion(
         val name: String,
         val admin: String,
         val country: String,
@@ -197,7 +197,7 @@ class AmbientStageWidget(
 
         val input = EditText(context).apply {
             isSingleLine = true
-            hint = "Type city name (e.g. Visakhapatnam, Hyderabad...)"
+            hint = "Type city name (e.g. Vizianagaram, Visakhapatnam...)"
             setText(lp.weatherCity)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.argb(150, 200, 220, 245))
@@ -229,17 +229,12 @@ class AmbientStageWidget(
 
         var searchRunnable: Runnable? = null
 
-        input.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                searchRunnable?.let { uiHandler.removeCallbacks(it) }
-                val q = s?.toString()?.trim().orEmpty()
-                if (q.length < 2) {
-                    suggestionsContainer.removeAllViews()
-                    statusTv.text = "Type at least 2 characters..."
-                    return
-                }
+        val triggerSearch: (String) -> Unit = { q ->
+            searchRunnable?.let { uiHandler.removeCallbacks(it) }
+            if (q.length < 2) {
+                suggestionsContainer.removeAllViews()
+                statusTv.text = "Type at least 2 characters..."
+            } else {
                 statusTv.text = "Searching '$q'..."
                 searchRunnable = Runnable {
                     thread {
@@ -247,7 +242,7 @@ class AmbientStageWidget(
                         uiHandler.post {
                             suggestionsContainer.removeAllViews()
                             if (list.isEmpty()) {
-                                statusTv.text = "No cities found for '$q'"
+                                statusTv.text = "No cities found for '$q'. Check internet connection."
                             } else {
                                 statusTv.text = "Select a city below:"
                                 for (item in list) {
@@ -300,19 +295,31 @@ class AmbientStageWidget(
                         }
                     }
                 }
-                uiHandler.postDelayed(searchRunnable!!, 350L)
+                uiHandler.postDelayed(searchRunnable!!, 300L)
+            }
+        }
+
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                triggerSearch(s?.toString()?.trim().orEmpty())
             }
         })
 
         dialog.show()
         input.requestFocus()
+        if (input.text.toString().trim().length >= 2) {
+            triggerSearch(input.text.toString().trim())
+        }
     }
 
     private fun fetchCitySuggestions(query: String): List<CitySuggestion> {
         return try {
             val encoded = URLEncoder.encode(query, "UTF-8")
-            val url = "https://open-meteo.com$encoded&count=5&language=en&format=json"
-            val json = JSONObject(fetchUrl(url))
+            val url = "https://open-meteo.com"
+            val rawResponse = fetchUrl(url)
+            val json = JSONObject(rawResponse)
             val arr = json.optJSONArray("results") ?: return emptyList()
             val out = ArrayList<CitySuggestion>()
             for (i in 0 until arr.length()) {
@@ -332,7 +339,7 @@ class AmbientStageWidget(
             emptyList()
         }
     }
-        fun refreshStyle() {
+    fun refreshStyle() {
         val accent = lp.accentColor
         amPmTv.setTextColor(accent)
         analogView.updateAccent(accent)
@@ -387,7 +394,7 @@ class AmbientStageWidget(
                     if (cityName.isEmpty()) cityName = "Visakhapatnam"
                 }
 
-                val wUrl = "https://open-meteo.com$lat&longitude=$lon&current_weather=true"
+                val wUrl = "https://open-meteo.com"
                 val wJson = JSONObject(fetchUrl(wUrl))
                 val cw = wJson.getJSONObject("current_weather")
                 val temp = "${cw.getDouble("temperature").toInt()}°C"
@@ -414,8 +421,11 @@ class AmbientStageWidget(
 
     private fun fetchUrl(urlStr: String): String {
         val conn = URL(urlStr).openConnection() as HttpURLConnection
-        conn.connectTimeout = 6000
-        conn.readTimeout = 6000
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android TV; ShreeTVLauncher)")
+        conn.setRequestProperty("Accept", "application/json")
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
         return conn.inputStream.bufferedReader().use { it.readText() }
     }
 
@@ -470,7 +480,6 @@ class AmbientStageWidget(
             val cx = w / 2f; val cy = h / 2f
             val r = minOf(cx, cy) - LauncherUtils.dpF(context, 4f)
 
-            // Deep Radial Luxury Dial
             dialPaint.shader = RadialGradient(
                 cx, cy * 0.85f, r,
                 intArrayOf(Color.rgb(34, 48, 96), Color.rgb(16, 24, 54), Color.rgb(8, 12, 28)),
@@ -479,17 +488,14 @@ class AmbientStageWidget(
             )
             canvas.drawCircle(cx, cy, r, dialPaint)
 
-            // Outer Metallic Gradient Bezel
             bezelPaint.strokeWidth = LauncherUtils.dpF(context, 3.2f)
             bezelPaint.shader = LinearGradient(0f, 0f, w, h, accent, Color.rgb(225, 238, 255), Shader.TileMode.CLAMP)
             canvas.drawCircle(cx, cy, r, bezelPaint)
 
-            // Inner Subtle Gold/Silver Track
             innerRingPaint.strokeWidth = LauncherUtils.dpF(context, 1f)
             innerRingPaint.color = Color.argb(75, 255, 255, 255)
             canvas.drawCircle(cx, cy, r * 0.88f, innerRingPaint)
 
-            // 60 Minute Dots & Classic Numbers 1..12
             for (i in 0 until 60) {
                 val ang = Math.toRadians((i * 6 - 90).toDouble())
                 val isHour = i % 5 == 0
@@ -519,12 +525,10 @@ class AmbientStageWidget(
             val min = cal.get(Calendar.MINUTE) + sec / 60f
             val hr = (cal.get(Calendar.HOUR) % 12) + min / 60f
 
-            // Hour, Minute, and Counter-weighted Second Hands
             drawHand(canvas, cx, cy, (hr * 30f - 90f), r * 0.45f, 4.4f, Color.WHITE)
             drawHand(canvas, cx, cy, (min * 6f - 90f), r * 0.66f, 2.8f, Color.rgb(185, 230, 255))
             drawHand(canvas, cx, cy, (sec * 6f - 90f), r * 0.76f, 1.5f, Color.rgb(255, 95, 135))
 
-            // Center Jewel Cap
             handPaint.style = Paint.Style.FILL
             handPaint.color = accent
             canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 5f), handPaint)
