@@ -281,7 +281,7 @@ class MainActivity : Activity() {
         AppGridManager.populateHiddenRibbon(this, lp, hiddenSection, hiddenRow, hiddenCount) { pkg, label ->
             val updated = lp.getHiddenApps().apply { remove(pkg) }
             lp.setHiddenApps(updated)
-            Toast.makeText(this, "\$label restored to Home", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$label restored to Home", Toast.LENGTH_SHORT).show()
             refreshApps(false, pkg)
             if (updated.isEmpty()) closeHiddenRibbon(pkg) else openHiddenRibbon()
         }
