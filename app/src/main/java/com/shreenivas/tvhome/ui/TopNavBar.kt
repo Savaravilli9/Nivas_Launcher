@@ -94,8 +94,7 @@ class TopNavBar(
         clipChildren = false
         clipToPadding = false
         setPadding(dp(4), dp(8), dp(6), dp(14))
-)
-
+        
         val barHeight = dp(38)
         val avatarSize = dp(92) // Large 2.5x Hero Profile Avatar centered on TopNavBar centerline
 
