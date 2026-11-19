@@ -15,14 +15,16 @@ object LauncherUtils {
     val FLUID_SPRING = OvershootInterpolator(1.45f)
     val SILKY_EASE = DecelerateInterpolator(1.8f)
 
+    /** Add one launcher entry per package; prefer the first (Leanback) result. */
     fun addApps(pm: PackageManager, category: String, out: MutableMap<String, ResolveInfo>) {
         val query = Intent(Intent.ACTION_MAIN).apply { addCategory(category) }
         val list = pm.queryIntentActivities(query, 0)
         for (app in list) {
             val pkg = app.activityInfo?.packageName ?: continue
-            val name = app.activityInfo?.name ?: continue
             if (pkg == "com.shreenivas.tvhome") continue
-            out["$pkg/$name"] = app
+            // AppGridManager queries Leanback first. Preserve that result instead of
+            // adding duplicate tiles for apps that expose multiple launcher activities.
+            if (!out.containsKey(pkg)) out[pkg] = app
         }
     }
 

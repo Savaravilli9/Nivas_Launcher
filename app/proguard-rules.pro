@@ -3,25 +3,9 @@
 -mergeinterfacesaggressively
 -repackageclasses ''
 
--keep public class com.shreenivas.tvhome.MainActivity
--keep public class com.shreenivas.tvhome.services.NightNudgeReceiver
--keep public class com.shreenivas.tvhome.services.TvNotificationService
+# Keep components referenced by AndroidManifest.xml from being renamed or removed.
+-keep class com.shreenivas.tvhome.MainActivity { *; }
+-keep class com.shreenivas.tvhome.services.NightNudgeReceiver { *; }
+-keep class com.shreenivas.tvhome.services.TvNotificationService { *; }
 
--assumenosideeffects class kotlin.jvm.internal.Intrinsics {
-    public static void checkNotNull(...);
-    public static void checkNotNullParameter(...);
-    public static void checkExpressionValueIsNotNull(...);
-    public static void checkNotNullExpressionValue(...);
-    public static void checkParameterIsNotNull(...);
-    public static void throwUninitializedPropertyAccessException(...);
-}
-
--assumenosideeffects class android.util.Log {
-    public static int d(...);
-    public static int v(...);
-    public static int i(...);
-    public static int w(...);
-}
-
--dontwarn kotlin.**
--dontwarn kotlinx.**
+# Do not remove Kotlin runtime null checks or lateinit guards: they are correctness checks.

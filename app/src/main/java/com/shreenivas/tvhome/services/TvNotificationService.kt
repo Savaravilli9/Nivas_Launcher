@@ -22,17 +22,18 @@ class TvNotificationService : NotificationListenerService() {
 
     companion object {
         private val liveAlerts = ArrayList<RealAlert>()
-        private var instance: TvNotificationService? = null
+        @Volatile private var instance: TvNotificationService? = null
 
         fun isPermissionGranted(ctx: Context): Boolean {
-            val cn = ComponentName(ctx, TvNotificationService::class.java)
-            val flat = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners")
-            return flat != null && flat.contains(cn.flattenToString())
+            val component = ComponentName(ctx, TvNotificationService::class.java).flattenToString()
+            val enabled = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners")
+                ?: return false
+            return enabled.split(':').any { it.equals(component, ignoreCase = true) }
         }
 
         fun getAlerts(): List<RealAlert> {
             instance?.syncActiveNotifications()
-            return liveAlerts.toList()
+            return synchronized(liveAlerts) { liveAlerts.toList() }
         }
 
         fun dismissAlert(key: String) {
@@ -40,7 +41,7 @@ class TvNotificationService : NotificationListenerService() {
                 instance?.cancelNotification(key)
             } catch (_: Exception) {
             }
-            liveAlerts.removeAll { it.key == key }
+            synchronized(liveAlerts) { liveAlerts.removeAll { it.key == key } }
         }
 
         fun clearAllAlerts() {
@@ -48,7 +49,7 @@ class TvNotificationService : NotificationListenerService() {
                 instance?.cancelAllNotifications()
             } catch (_: Exception) {
             }
-            liveAlerts.clear()
+            synchronized(liveAlerts) { liveAlerts.clear() }
         }
     }
 
@@ -59,8 +60,8 @@ class TvNotificationService : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+        if (instance === this) instance = null
         super.onListenerDisconnected()
-        instance = null
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -104,8 +105,10 @@ class TvNotificationService : NotificationListenerService() {
                     )
                 )
             }
-            liveAlerts.clear()
-            liveAlerts.addAll(updated)
+            synchronized(liveAlerts) {
+                liveAlerts.clear()
+                liveAlerts.addAll(updated)
+            }
         } catch (_: Exception) {
         }
     }
