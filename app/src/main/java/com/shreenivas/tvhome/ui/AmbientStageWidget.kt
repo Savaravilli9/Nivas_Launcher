@@ -329,28 +329,54 @@ class AmbientStageWidget(
         fetchCitySuggestionsWithStatus(query).first
 
     private fun fetchCitySuggestionsWithStatus(query: String): Pair<List<CitySuggestion>, String?> {
-        return try {
+        // 1. Try Open-Meteo Geocoding API first
+        try {
             val encoded = URLEncoder.encode(query, "UTF-8")
             val url = "https://geocoding-api." + "://open-meteo.com" + encoded + "&count=5&language=en&format=json"
             val rawResponse = fetchUrl(url)
             val json = JSONObject(rawResponse)
-            val arr = json.optJSONArray("results") ?: return emptyList<CitySuggestion>() to null
-            val out = ArrayList<CitySuggestion>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                out.add(
-                    CitySuggestion(
-                        name = obj.optString("name"),
-                        admin = obj.optString("admin1"),
-                        country = obj.optString("country"),
-                        lat = obj.getDouble("latitude"),
-                        lon = obj.getDouble("longitude")
+            val arr = json.optJSONArray("results")
+            if (arr != null && arr.length() > 0) {
+                val out = ArrayList<CitySuggestion>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    out.add(
+                        CitySuggestion(
+                            name = obj.optString("name"),
+                            admin = obj.optString("admin1"),
+                            country = obj.optString("country"),
+                            lat = obj.getDouble("latitude"),
+                            lon = obj.getDouble("longitude")
+                        )
                     )
-                )
+                }
+                return out to null
             }
-            out to null
+        } catch (_: Exception) {
+            // Fallback to Android Geocoder below
+        }
+
+        // 2. Fallback: Built-in Android Geocoder (works even if Open-Meteo is blocked)
+        return try {
+            @Suppress("DEPRECATION")
+            val addresses = android.location.Geocoder(context, Locale.getDefault()).getFromLocationName(query, 5)
+            if (!addresses.isNullOrEmpty()) {
+                val out = addresses.mapNotNull { addr ->
+                    val cName = addr.locality ?: addr.subAdminArea ?: addr.featureName ?: return@mapNotNull null
+                    CitySuggestion(
+                        name = cName,
+                        admin = addr.adminArea ?: "",
+                        country = addr.countryName ?: "",
+                        lat = addr.latitude,
+                        lon = addr.longitude
+                    )
+                }
+                if (out.isNotEmpty()) out to null else emptyList<CitySuggestion>() to null
+            } else {
+                emptyList<CitySuggestion>() to null
+            }
         } catch (e: Exception) {
-            emptyList<CitySuggestion>() to (e.message ?: e.javaClass.simpleName)
+            emptyList<CitySuggestion>() to (e.message ?: "Check TV Internet")
         }
     }
 
