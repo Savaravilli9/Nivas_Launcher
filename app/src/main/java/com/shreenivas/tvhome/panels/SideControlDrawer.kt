@@ -144,7 +144,7 @@ class SideControlDrawer(
             MODE_SUB_SOUND -> "🔊  " to "Sound & Audio Out"
             else -> "⚡  " to "Control Center"
         }
-        topRow.addView(text("\$icon\$title", 13.5f, Color.WHITE, true))
+        topRow.addView(text("$icon$title", 13.5f, Color.WHITE, true))
         topRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
 
         val closeX = TextView(context).apply {
@@ -212,7 +212,7 @@ class SideControlDrawer(
 
         val gridRow1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
         gridRow1.addView(makeGridTile("📺", "TV Inputs", "HDMI & Sources ›") { open(MODE_SUB_INPUTS) }, LinearLayout.LayoutParams(0, dp(58f), 1f).apply { rightMargin = dp(6f) })
-        gridRow1.addView(makeGridTile("🎨", "Picture", "\$selectedPicturePreset ›") { open(MODE_SUB_PICTURE) }, LinearLayout.LayoutParams(0, dp(58f), 1f))
+        gridRow1.addView(makeGridTile("🎨", "Picture", "$selectedPicturePreset ›") { open(MODE_SUB_PICTURE) }, LinearLayout.LayoutParams(0, dp(58f), 1f))
         panel.addView(gridRow1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
 
         val gridRow2 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
@@ -238,7 +238,7 @@ class SideControlDrawer(
         val ramSummary = getRamStatusText()
         addActionButton(panel, "🚀", "Boost Memory (RAM)", ramSummary) {
             Runtime.getRuntime().gc()
-            Toast.makeText(context, "Memory optimized! \${getRamStatusText()}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Memory optimized! ${getRamStatusText()}", Toast.LENGTH_SHORT).show()
             populateActivePanel(false)
         }
         addActionButton(panel, "📶", "Wi-Fi & Network", "Signal, IP & nearby networks ›") { open(MODE_WIFI) }
@@ -300,7 +300,7 @@ class SideControlDrawer(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
             addActionButton(panel, "🔓", "Grant System Brightness Access", "Allow launcher to control hardware backlight") {
                 try {
-                    val i = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:\${context.packageName}"))
+                    val i = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))
                     context.startActivity(i)
                 } catch (_: Exception) { launch(Settings.ACTION_DISPLAY_SETTINGS) }
             }
@@ -323,8 +323,8 @@ class SideControlDrawer(
                     populateActivePanel(false)
                 }
             }
-            card.addView(text(if (isSel) "✓  \$name" else "○  \$name", 10.5f, if (isSel) lp.accentColor else Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
-            card.addView(text("\${presetBrightness[idx]}%", 9f, Color.argb(190, 220, 235, 255), true))
+            card.addView(text(if (isSel) "✓  $name" else "○  $name", 10.5f, if (isSel) lp.accentColor else Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
+            card.addView(text("${presetBrightness[idx]}%", 9f, Color.argb(190, 220, 235, 255), true))
             panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
         }
 
@@ -335,7 +335,7 @@ class SideControlDrawer(
 
         for (m in modes) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                addActionButton(panel, "🖥", "\${m.physicalWidth} × \${m.physicalHeight}", "\${m.refreshRate.toInt()} Hz Native Resolution") {
+                addActionButton(panel, "🖥", "${m.physicalWidth} × ${m.physicalHeight}", "${m.refreshRate.toInt()} Hz Native Resolution") {
                     launch(Settings.ACTION_DISPLAY_SETTINGS)
                 }
             }
