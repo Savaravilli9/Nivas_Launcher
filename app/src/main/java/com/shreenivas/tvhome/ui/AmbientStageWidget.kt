@@ -144,7 +144,7 @@ class AmbientStageWidget(
 
         val savedCity = lp.prefs.getString("cached_city", lp.weatherCity.ifBlank { "Tap to Select City" })
         cityTv.apply {
-            text = "📍 \$savedCity  ▾"
+            text = "📍 $savedCity  ▾"
             textSize = 10.5f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
@@ -240,14 +240,14 @@ class AmbientStageWidget(
                     statusTv.text = "Type at least 2 characters..."
                     return
                 }
-                statusTv.text = "Searching '\$q'..."
+                statusTv.text = "Searching '$q'..."
                 searchRunnable = Runnable {
                     thread {
                         val list = fetchCitySuggestions(q)
                         uiHandler.post {
                             suggestionsContainer.removeAllViews()
                             if (list.isEmpty()) {
-                                statusTv.text = "No cities found for '\$q'"
+                                statusTv.text = "No cities found for '$q'"
                             } else {
                                 statusTv.text = "Select a city below:"
                                 for (item in list) {
@@ -276,13 +276,13 @@ class AmbientStageWidget(
                                                 .putFloat("saved_lat", item.lat.toFloat())
                                                 .putFloat("saved_lon", item.lon.toFloat())
                                                 .apply()
-                                            cityTv.text = "📍 \${item.name}  ▾"
+                                            cityTv.text = "📍 ${item.name}  ▾"
                                             dialog.dismiss()
                                             triggerWeatherRefresh(true)
                                         }
                                     }
                                     rowBtn.addView(TextView(context).apply {
-                                        text = "📍 \${item.name}"
+                                        text = "📍 ${item.name}"
                                         textSize = 12f
                                         typeface = Typeface.DEFAULT_BOLD
                                         setTextColor(Color.WHITE)
@@ -311,7 +311,7 @@ class AmbientStageWidget(
     private fun fetchCitySuggestions(query: String): List<CitySuggestion> {
         return try {
             val encoded = URLEncoder.encode(query, "UTF-8")
-            val url = "https://open-meteo.com\$encoded&count=5&language=en&format=json"
+            val url = "https://open-meteo.com$encoded&count=5&language=en&format=json"
             val json = JSONObject(fetchUrl(url))
             val arr = json.optJSONArray("results") ?: return emptyList()
             val out = ArrayList<CitySuggestion>()
@@ -387,7 +387,7 @@ class AmbientStageWidget(
                     if (cityName.isEmpty()) cityName = "Visakhapatnam"
                 }
 
-                val wUrl = "https://open-meteo.com\$lat&longitude=\$lon&current_weather=true"
+                val wUrl = "https://open-meteo.com$lat&longitude=$lon&current_weather=true"
                 val wJson = JSONObject(fetchUrl(wUrl))
                 val cw = wJson.getJSONObject("current_weather")
                 val temp = "${cw.getDouble("temperature").toInt()}°C"
@@ -405,7 +405,7 @@ class AmbientStageWidget(
                     weatherIconTv.text = emoji
                     tempTv.text = temp
                     condTv.text = desc
-                    cityTv.text = "📍 \$cityName  ▾"
+                    cityTv.text = "📍 $cityName  ▾"
                 }
             } catch (_: Exception) {
             }
