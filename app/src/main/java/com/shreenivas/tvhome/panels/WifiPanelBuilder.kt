@@ -2,17 +2,22 @@ package com.shreenivas.tvhome.panels
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.ConnectivityManager
+import android.net.NetworkRequest
+import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiManager
+import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
-import android.provider.Settings
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.Window
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -65,11 +70,8 @@ object WifiPanelBuilder {
         statusCard.addView(togglePill)
         panel.addView(statusCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 8) })
 
-        // Dynamic container for Speed/IP card + Nearby Networks (updated in-place without rebuilding panel!)
         val dynamicListContainer = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            clipChildren = false
-            clipToPadding = false
+            orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false
         }
 
         val renderDynamicWifiContent = {
@@ -112,98 +114,141 @@ object WifiPanelBuilder {
             }
 
             dynamicListContainer.addView(TextView(ctx).apply {
-                text = "NEARBY AVAILABLE NETWORKS"; textSize = 9f; typeface = Typeface.DEFAULT_BOLD
+                text = "NEARBY NETWORKS (TAP TO CONNECT IN-APP)"; textSize = 9f; typeface = Typeface.DEFAULT_BOLD
                 setTextColor(lp.accentColor); letterSpacing = 0.08f
             }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
 
-            val hasLocPerm = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            @SuppressLint("MissingPermission")
+            val results = try { wm?.scanResults ?: emptyList() } catch (_: Exception) { emptyList() }
+            val unique = results.filter { !it.SSID.isNullOrBlank() }.distinctBy { it.SSID }.sortedByDescending { it.level }
 
-            if (!hasLocPerm) {
-                val permBtn = makeGlassBtn(ctx, lp, "📍  Enable Location to Scan Networks") {
-                    try { ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } catch (_: Exception) {}
-                }
-                dynamicListContainer.addView(permBtn, LinearLayout.LayoutParams(-1, dp(ctx, 40)))
+            if (unique.isEmpty()) {
+                dynamicListContainer.addView(TextView(ctx).apply {
+                    text = "No nearby networks scanned yet. Tap Refresh Scan above."
+                    textSize = 9.5f; setTextColor(Color.argb(190, 210, 230, 250))
+                    setPadding(dp(ctx, 4), dp(ctx, 8), dp(ctx, 4), dp(ctx, 8))
+                })
             } else {
-                @SuppressLint("MissingPermission")
-                val results = try { wm?.scanResults ?: emptyList() } catch (_: Exception) { emptyList() }
-                val unique = results.filter { !it.SSID.isNullOrBlank() }.distinctBy { it.SSID }.sortedByDescending { it.level }
-
-                if (unique.isEmpty()) {
-                    dynamicListContainer.addView(TextView(ctx).apply {
-                        text = "No nearby networks found. Tap Refresh Scan or TV Wi-Fi Settings."
-                        textSize = 9.5f; setTextColor(Color.argb(190, 210, 230, 250))
-                        setPadding(dp(ctx, 4), dp(ctx, 8), dp(ctx, 4), dp(ctx, 8))
-                    })
-                } else {
-                    for (scan in unique.take(8)) {
-                        val isCurrent = scan.SSID == curSsid
-                        val netRow = LinearLayout(ctx).apply {
-                            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                            setPadding(dp(ctx, 12), dp(ctx, 9), dp(ctx, 12), dp(ctx, 9)); isFocusable = true
-                            background = cardBg(ctx, lp.accentColor, isCurrent)
-                            setOnFocusChangeListener { v, f ->
-                                MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f)
-                                v.background = cardBg(ctx, lp.accentColor, f || isCurrent)
-                            }
-                            setOnClickListener {
-                                try { ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } catch (_: Exception) {}
-                            }
+                for (scan in unique.take(8)) {
+                    val isCurrent = scan.SSID == curSsid
+                    val netRow = LinearLayout(ctx).apply {
+                        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                        setPadding(dp(ctx, 12), dp(ctx, 9), dp(ctx, 12), dp(ctx, 9)); isFocusable = true
+                        background = cardBg(ctx, lp.accentColor, isCurrent)
+                        setOnFocusChangeListener { v, f ->
+                            MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f)
+                            v.background = cardBg(ctx, lp.accentColor, f || isCurrent)
                         }
-                        netRow.addView(TextView(ctx).apply {
-                            text = if (isCurrent) "✓  ${scan.SSID}" else "📶  ${scan.SSID}"
-                            textSize = 10.5f; typeface = Typeface.DEFAULT_BOLD
-                            setTextColor(if (isCurrent) Color.rgb(120, 245, 175) else Color.WHITE)
-                        }, LinearLayout.LayoutParams(0, -2, 1f))
-                        netRow.addView(TextView(ctx).apply {
-                            text = "›"; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.LTGRAY)
-                        })
-                        dynamicListContainer.addView(netRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
+                        setOnClickListener {
+                            showGlossyWifiConnectDialog(ctx, lp, wm, scan.SSID)
+                        }
                     }
+                    netRow.addView(TextView(ctx).apply {
+                        text = if (isCurrent) "✓  ${scan.SSID}" else "📶  ${scan.SSID}"
+                        textSize = 10.5f; typeface = Typeface.DEFAULT_BOLD
+                        setTextColor(if (isCurrent) Color.rgb(120, 245, 175) else Color.WHITE)
+                    }, LinearLayout.LayoutParams(0, -2, 1f))
+                    netRow.addView(TextView(ctx).apply {
+                        text = "›"; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.LTGRAY)
+                    })
+                    dynamicListContainer.addView(netRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
                 }
             }
         }
 
-        // In-place Wi-Fi On/Off toggle (focus stays locked on statusCard!)
         statusCard.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    ctx.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY))
-                } catch (_: Exception) {
-                    try { ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } catch (_: Exception) {}
-                }
-            } else {
-                try {
-                    wm?.isWifiEnabled = !isWifiOn
-                    renderDynamicWifiContent()
-                } catch (_: Exception) {
-                                        try { ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } catch (_: Exception) {}
-                }
+            try {
+                wm?.isWifiEnabled = !isWifiOn
+                renderDynamicWifiContent()
+            } catch (_: Exception) {
+                Toast.makeText(ctx, "Wi-Fi radio controlled by TV OS", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // Action Row: Refresh Scan & TV Wi-Fi Settings (In-Place Refresh — Focus NEVER jumps!)
-        val actionRow = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false
+        val refreshBtn = makeGlassBtn(ctx, lp, "🔄  Refresh Nearby Networks") {
+            try { wm?.startScan() } catch (_: Exception) {}
+            renderDynamicWifiContent()
+            Toast.makeText(ctx, "Wi-Fi list refreshed", Toast.LENGTH_SHORT).show()
         }
-        actionRow.addView(
-            makeGlassBtn(ctx, lp, "🔄  Refresh Scan") {
-                try { wm?.startScan() } catch (_: Exception) {}
-                renderDynamicWifiContent()
-                Toast.makeText(ctx, "Wi-Fi list refreshed", Toast.LENGTH_SHORT).show()
-            },
-            LinearLayout.LayoutParams(0, dp(ctx, 38), 1f).apply { rightMargin = dp(ctx, 6) }
-        )
-        actionRow.addView(
-            makeGlassBtn(ctx, lp, "⚙  TV Wi-Fi Settings") {
-                try { ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) } catch (_: Exception) {}
-            },
-            LinearLayout.LayoutParams(0, dp(ctx, 38), 1f)
-        )
-        panel.addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 10) })
-
+        panel.addView(refreshBtn, LinearLayout.LayoutParams(-1, dp(ctx, 38)).apply { bottomMargin = dp(ctx, 10) })
         panel.addView(dynamicListContainer, LinearLayout.LayoutParams(-1, -2))
         renderDynamicWifiContent()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun showGlossyWifiConnectDialog(ctx: Context, lp: LauncherPreferences, wm: WifiManager?, ssid: String) {
+        val dialog = Dialog(ctx)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(ctx, 22), dp(ctx, 18), dp(ctx, 22), dp(ctx, 18))
+            background = GradientDrawable(
+                                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.argb(242, 24, 36, 78), Color.argb(248, 12, 18, 44))
+            ).apply {
+                cornerRadius = LauncherUtils.dpF(ctx, 22f)
+                setStroke(dp(ctx, 1), Color.argb(140, 255, 255, 255))
+            }
+        }
+
+        box.addView(TextView(ctx).apply {
+            text = "📶  Connect to $ssid"
+            textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(ctx, 12))
+        })
+
+        val passInput = EditText(ctx).apply {
+            isSingleLine = true
+            hint = "Enter Wi-Fi Password"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.argb(150, 200, 220, 245))
+            setPadding(dp(ctx, 12), dp(ctx, 10), dp(ctx, 12), dp(ctx, 10))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            background = GradientDrawable().apply {
+                setColor(Color.argb(55, 255, 255, 255))
+                cornerRadius = LauncherUtils.dpF(ctx, 12f)
+                setStroke(dp(ctx, 1), lp.accentColor)
+            }
+        }
+        box.addView(passInput, LinearLayout.LayoutParams(dp(ctx, 300), -2))
+
+        val btnRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        btnRow.addView(makeGlassBtn(ctx, lp, "Cancel") { dialog.dismiss() },
+            LinearLayout.LayoutParams(0, dp(ctx, 38), 1f).apply { rightMargin = dp(ctx, 8) })
+
+        btnRow.addView(makeGlassBtn(ctx, lp, "✓  Connect") {
+            val pwd = passInput.text.toString()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val spec = WifiNetworkSpecifier.Builder().setSsid(ssid).apply {
+                    if (pwd.isNotEmpty()) setWpa2Passphrase(pwd)
+                }.build()
+                val req = NetworkRequest.Builder()
+                    .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                    .setNetworkSpecifier(spec)
+                    .build()
+                val cm = ctx.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                cm?.requestNetwork(req, ConnectivityManager.NetworkCallback())
+            } else if (wm != null) {
+                val conf = WifiConfiguration().apply {
+                    SSID = "\"$ssid\""
+                    if (pwd.isNotEmpty()) preSharedKey = "\"$pwd\"" else allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
+                }
+                val netId = wm.addNetwork(conf)
+                if (netId != -1) {
+                    wm.disconnect()
+                    wm.enableNetwork(netId, true)
+                    wm.reconnect()
+                }
+            }
+            Toast.makeText(ctx, "Connecting to $ssid...", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }, LinearLayout.LayoutParams(0, dp(ctx, 38), 1.2f))
+
+        box.addView(btnRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(ctx, 14) })
+        dialog.setContentView(box)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
     }
 
     private fun makeGlassBtn(ctx: Context, lp: LauncherPreferences, label: String, onClick: () -> Unit) = TextView(ctx).apply {
