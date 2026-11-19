@@ -8,8 +8,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
@@ -27,14 +29,14 @@ import java.util.concurrent.ConcurrentHashMap
 
 object AppTileFactory {
 
-    private val iconCache = ConcurrentHashMap<String, Drawable>()
+    private val fullBleedCache = ConcurrentHashMap<String, Bitmap>()
     private val labelCache = ConcurrentHashMap<String, String>()
     private val colorCache = ConcurrentHashMap<String, Int>()
     private var lastFocusedX = -1f
     private var lastFocusedY = -1f
 
     fun clearAssetCache() {
-        iconCache.clear()
+        fullBleedCache.clear()
         labelCache.clear()
         colorCache.clear()
     }
@@ -50,35 +52,58 @@ object AppTileFactory {
         return labelCache.getOrPut(pkg) { info.loadLabel(pm).toString() }
     }
 
-    private fun getCachedIcon(pm: PackageManager, info: ResolveInfo): Drawable {
+    private fun getFullBleedBitmap(pm: PackageManager, info: ResolveInfo): Bitmap {
         val pkg = info.activityInfo.packageName
-        return iconCache.getOrPut(pkg) { info.loadIcon(pm) }
-    }
-
-    private fun getAppDominantColor(pkg: String, drawable: Drawable, fallback: Int): Int {
-        return colorCache.getOrPut(pkg) {
-            extractVibrantColor(drawable, fallback)
+        return fullBleedCache.getOrPut(pkg) {
+            renderFullBleedIcon(info.loadIcon(pm))
         }
     }
 
-    private fun extractVibrantColor(drawable: Drawable, fallback: Int): Int {
-        return try {
-            val bmp = Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            drawable.setBounds(0, 0, 24, 24)
-            drawable.draw(canvas)
+    private fun renderFullBleedIcon(drawable: Drawable): Bitmap {
+        val size = 144
+        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && drawable is AdaptiveIconDrawable) {
+            // Adaptive icons have a 108dp canvas with an 18dp safe-zone inset on each side.
+            // Expanding bounds by 22% crops out the rounded-square mask so the true background fills 100% edge-to-edge!
+            val inset = (size * 0.22f).toInt()
+            drawable.background?.let { bg ->
+                bg.setBounds(-inset, -inset, size + inset, size + inset)
+                bg.draw(canvas)
+            }
+            drawable.foreground?.let { fg ->
+                val fgInset = (size * 0.14f).toInt()
+                fg.setBounds(-fgInset, -fgInset, size + fgInset, size + fgInset)
+                fg.draw(canvas)
+            }
+        } else {
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+        }
+        return out
+    }
+
+    private fun getAppDominantColor(pkg: String, bmp: Bitmap, fallback: Int): Int {
+        return colorCache.getOrPut(pkg) {
+            extractVibrantColor(bmp, fallback)
+        }
+    }
+
+    private fun extractVibrantColor(bmp: Bitmap, fallback: Int): Int {
+        return try {
             var bestColor = fallback
             var maxScore = -1f
+            val step = maxOf(1, bmp.width / 16)
 
-            for (x in 2 until 22 step 2) {
-                for (y in 2 until 22 step 2) {
+            for (x in step until bmp.width - step step step) {
+                for (y in step until bmp.height - step step step) {
                     val px = bmp.getPixel(x, y)
-                    if (Color.alpha(px) < 160) continue
+                    if (Color.alpha(px) < 180) continue
                     val hsv = FloatArray(3)
                     Color.colorToHSV(px, hsv)
-                    val sat = hsv[1]
-                    val valBright = hsv[2]
+                    val sat = hsv.get(1)
+                    val valBright = hsv.get(2)
                     if (valBright < 0.25f || (sat < 0.18f && valBright > 0.85f)) continue
                     val score = (sat * 2.2f) + valBright
                     if (score > maxScore) {
@@ -87,17 +112,15 @@ object AppTileFactory {
                     }
                 }
             }
-            bmp.recycle()
             val outHsv = FloatArray(3)
             Color.colorToHSV(bestColor, outHsv)
-            outHsv[1] = maxOf(outHsv[1], 0.55f)
-            outHsv[2] = maxOf(outHsv[2], 0.88f)
+            outHsv.set(1, maxOf(outHsv.get(1), 0.55f))
+            outHsv.set(2, maxOf(outHsv.get(2), 0.88f))
             Color.HSVToColor(255, outHsv)
         } catch (_: Exception) {
             fallback
         }
     }
-
     fun create(
         ctx: Context, pm: PackageManager, lp: LauncherPreferences,
         info: ResolveInfo, isFavRow: Boolean, isFav: Boolean,
@@ -106,8 +129,8 @@ object AppTileFactory {
     ): View {
         val pkg = info.activityInfo.packageName
         val label = getCachedLabel(pm, info)
-        val icon = getCachedIcon(pm, info)
-        val appColor = getAppDominantColor(pkg, icon, lp.accentColor)
+        val fullBmp = getFullBleedBitmap(pm, info)
+        val appColor = getAppDominantColor(pkg, fullBmp, lp.accentColor)
 
         var breathingAnim: ValueAnimator? = null
 
@@ -134,7 +157,7 @@ object AppTileFactory {
             clipToPadding = false
         }
 
-        // Top: Double-Shaped Glossy Icon (Outer Theme Shape + Gap + Inner Cropped Icon)
+        // Top: Large Double-Shaped Glossy Icon (Outer Theme Palette + Gap + Edge-to-Edge Cropped App Icon)
         val iconBadgeSize = getIconBadgeSizePx(ctx, lp.tileSize)
         val innerCard = GlowTileLayout(ctx).apply {
             tag = "glow_card"
@@ -144,16 +167,16 @@ object AppTileFactory {
             setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appColor)
         }
 
+        // Zero padding so the icon fills 100% of the inner Heart / Circle / Squircle shape!
         val iv = ImageView(ctx).apply {
             tag = "tile_icon"
-            setImageDrawable(icon)
+            setImageBitmap(fullBmp)
             scaleType = ImageView.ScaleType.CENTER_CROP
-            val pad = dp(ctx, 5)
-            setPadding(pad, pad, pad, pad)
         }
         innerCard.addView(iv, FrameLayout.LayoutParams(-1, -1))
         unitContainer.addView(innerCard, LinearLayout.LayoutParams(iconBadgeSize, iconBadgeSize))
-        // Bottom: Rounded Rectangle Glossy Nameplate that the Icon sits right above
+
+        // Bottom: Rounded Rectangle Glossy Nameplate that the Icon sits right on top of
         val namePlate = FrameLayout(ctx).apply {
             tag = "name_plate"
             outlineProvider = null
@@ -163,7 +186,7 @@ object AppTileFactory {
         val tv = TextView(ctx).apply {
             tag = "tile_label"
             text = label
-            textSize = if (lp.columns > 6) 8.8f else 10f
+            textSize = if (lp.columns > 6) 9f else 10.2f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             isSingleLine = true
@@ -174,7 +197,7 @@ object AppTileFactory {
         unitContainer.addView(namePlate, LinearLayout.LayoutParams(-1, -2).apply {
             leftMargin = dp(ctx, 6)
             rightMargin = dp(ctx, 6)
-            topMargin = dp(ctx, 4)
+            topMargin = dp(ctx, 3)
         })
 
         wrapper.addView(unitContainer, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
@@ -282,17 +305,17 @@ object AppTileFactory {
             }
             card.setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appCol)
         }
-        wrapper.findViewWithTag<TextView>("tile_label")?.textSize = if (lp.columns > 6) 8.8f else 10f
+        wrapper.findViewWithTag<TextView>("tile_label")?.textSize = if (lp.columns > 6) 9f else 10.2f
         wrapper.findViewWithTag<TextView>("tile_badge")?.let { applyBadgeState(it, lp, isFav) }
     }
 
     private fun nameplateBg(ctx: Context, focused: Boolean, appColor: Int) = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
-        if (focused) intArrayOf(LauncherUtils.withAlpha(appColor, 145), Color.argb(165, 18, 26, 52))
-        else intArrayOf(Color.argb(95, 255, 255, 255), Color.argb(55, 18, 26, 52))
+        if (focused) intArrayOf(LauncherUtils.withAlpha(appColor, 165), Color.argb(185, 18, 26, 52))
+        else intArrayOf(Color.argb(105, 255, 255, 255), Color.argb(65, 18, 26, 52))
     ).apply {
         cornerRadius = LauncherUtils.dpF(ctx, 10f)
-        setStroke(dp(ctx, if (focused) 1 else 1), if (focused) appColor else Color.argb(85, 255, 255, 255))
+        setStroke(dp(ctx, 1), if (focused) appColor else Color.argb(95, 255, 255, 255))
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
@@ -306,9 +329,9 @@ object AppTileFactory {
     }
 
     private fun getIconBadgeSizePx(ctx: Context, tileSize: String): Int = when (tileSize) {
-        "large" -> dp(ctx, 68)
-        "small" -> dp(ctx, 48)
-        else -> dp(ctx, 58)
+        "large" -> dp(ctx, 94)
+        "small" -> dp(ctx, 64)
+        else -> dp(ctx, 78)
     }
 
     private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
