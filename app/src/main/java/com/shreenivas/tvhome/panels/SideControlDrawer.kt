@@ -431,7 +431,7 @@ class SideControlDrawer(
                 orientation = LinearLayout.VERTICAL; setPadding(dp(11f), dp(9f), dp(11f), dp(9f)); isFocusable = true; background = glassCardBg(false)
                 setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
                 setOnClickListener {
-                    TvNotificationService.dismissAlert(item.key); listHolder.removeView(card)
+                    TvNotificationService.dismissAlert(item.key); listHolder.removeView(true)
                     val rem = TvNotificationService.getAlerts().size; headerCountTv.text = "LIVE SYSTEM ALERTS ($rem)"
                     if (rem == 0) listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply { gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f)) })
                 }
