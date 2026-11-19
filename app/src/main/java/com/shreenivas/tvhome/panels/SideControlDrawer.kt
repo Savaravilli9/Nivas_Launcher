@@ -497,10 +497,11 @@ class SideControlDrawer(
     }
 
     fun showProfileEditDialog() {
-        val box = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20f), dp(14f), dp(20f), dp(12f))
+        ProfileCropDialog.show(context, lp, onPickProfilePic) {
+            onLiveRefresh()
+            if (isOpen) populateActivePanel(false)
         }
+    }
         val nameInput = EditText(context).apply {
             isSingleLine = true
             hint = "Enter Profile Name"
