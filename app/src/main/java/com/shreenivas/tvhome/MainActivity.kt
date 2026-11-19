@@ -186,7 +186,7 @@ class MainActivity : Activity() {
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
         // Fixed 42dp height for TopNavBar so Side Panels start immediately below the TopNavBar!
-        mainPage.addView(topNavBar, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
+        mainPage.addView(topNavBar, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(18) })
 
         val contentArea = FrameLayout(this).apply {
             clipChildren = false
@@ -322,7 +322,7 @@ class MainActivity : Activity() {
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
-        contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
+        contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(10) })
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
