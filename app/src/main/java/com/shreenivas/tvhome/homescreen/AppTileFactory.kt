@@ -309,13 +309,13 @@ object AppTileFactory {
         wrapper.findViewWithTag<TextView>("tile_badge")?.let { applyBadgeState(it, lp, isFav) }
     }
 
-    private fun nameplateBg(ctx: Context, focused: Boolean, appColor: Int) = GradientDrawable(
-        GradientDrawable.Orientation.TOP_BOTTOM,
-        if (focused) intArrayOf(LauncherUtils.withAlpha(appColor, 165), Color.argb(185, 18, 26, 52))
-        else intArrayOf(Color.argb(105, 255, 255, 255), Color.argb(65, 18, 26, 52))
+    private fun nameplateBg(ctx: Context, focused: Boolean, accentColor: Int) = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT,
+        if (focused) intArrayOf(LauncherUtils.withAlpha(accentColor, 225), LauncherUtils.withAlpha(accentColor, 145))
+        else intArrayOf(LauncherUtils.withAlpha(accentColor, 115), Color.argb(125, 18, 26, 54))
     ).apply {
         cornerRadius = LauncherUtils.dpF(ctx, 10f)
-        setStroke(dp(ctx, 1), if (focused) appColor else Color.argb(95, 255, 255, 255))
+        setStroke(dp(ctx, 1), if (focused) Color.WHITE else LauncherUtils.withAlpha(accentColor, 185))
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
