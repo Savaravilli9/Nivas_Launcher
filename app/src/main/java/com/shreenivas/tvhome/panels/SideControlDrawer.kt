@@ -480,41 +480,59 @@ class SideControlDrawer(
     }
 
     private fun buildRealAlertsPanel(panel: LinearLayout) {
-        val hasPerm = TvNotificationService.isPermissionGranted(context)
-        if (!hasPerm) {
+        if (!TvNotificationService.isPermissionGranted(context)) {
             addLabel(panel, "PERMISSION REQUIRED")
             addActionButton(panel, "🔓", "Enable Notification Access", "Allow Shree TV Home to show real system & app alerts") {
                 launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             }
             return
         }
-
         val alerts = TvNotificationService.getAlerts()
         val topBar = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        topBar.addView(text("LIVE SYSTEM ALERTS (${alerts.size})", 9f, lp.accentColor, true))
+        val headerCountTv = text("LIVE SYSTEM ALERTS (${alerts.size})", 9f, lp.accentColor, true)
+        topBar.addView(headerCountTv)
         topBar.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+
+        val listHolder = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; clipChildren = false; clipToPadding = false }
         if (alerts.isNotEmpty()) {
-            val clearAll = text("Clear All", 9f, Color.WHITE, true).apply {
+            val clearAllBtn = text("Clear All", 9f, Color.WHITE, true).apply {
                 setPadding(dp(8f), dp(3f), dp(8f), dp(3f)); isFocusable = true; background = glassCardBg(false)
                 setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.03f, 3f); v.background = glassCardBg(f) }
-                setOnClickListener { TvNotificationService.clearAllAlerts(); populateActivePanel(false) }
+                setOnClickListener {
+                    TvNotificationService.clearAllAlerts()
+                    listHolder.removeAllViews()
+                    headerCountTv.text = "LIVE SYSTEM ALERTS (0)"
+                    listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
+                        gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
+                    })
+                }
             }
-            topBar.addView(clearAll)
+            topBar.addView(clearAllBtn)
         }
         panel.addView(topBar, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
+        panel.addView(listHolder, LinearLayout.LayoutParams(-1, -2))
 
         if (alerts.isEmpty()) {
-            val emptyTv = text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
+            listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
                 gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
-            }
-            panel.addView(emptyTv, LinearLayout.LayoutParams(-1, -2)); return
+            })
+            return
         }
-
         for (item in alerts) {
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL; setPadding(dp(11f), dp(9f), dp(11f), dp(9f)); isFocusable = true; background = glassCardBg(false)
                 setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
-                setOnClickListener { TvNotificationService.dismissAlert(item.key); populateActivePanel(false) }
+            }
+            card.setOnClickListener {
+                TvNotificationService.dismissAlert(item.key)
+                listHolder.removeView(card)
+                val rem = TvNotificationService.getAlerts().size
+                headerCountTv.text = "LIVE SYSTEM ALERTS ($rem)"
+                if (rem == 0) {
+                    listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
+                        gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
+                    })
+                }
             }
             val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             row1.addView(text("🔔  ${item.appName}", 9f, lp.accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
@@ -522,7 +540,7 @@ class SideControlDrawer(
             card.addView(row1)
             card.addView(text(item.title, 10.5f, Color.WHITE, true).apply { isSingleLine = true; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(3f), 0, dp(1f)) })
             card.addView(text(item.text, 9f, Color.argb(195, 215, 232, 250), false).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
-            panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
+            listHolder.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
         }
     }
 
