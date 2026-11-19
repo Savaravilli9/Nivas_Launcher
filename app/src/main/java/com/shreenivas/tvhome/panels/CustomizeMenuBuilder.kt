@@ -175,18 +175,23 @@ object CustomizeMenuBuilder {
         }
         panel.addView(swatchRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(ctx, 6) })
 
-        // 6. TILE THEME PALETTE (In-Place Chip Highlight — Zero Rebuild!)
+        // 6. TILE GLASS PALETTE (Automatic from TileThemePalette.KEYS & NAMES — Zero Rebuild!)
         addHeader(ctx, panel, "TILE GLASS PALETTE")
-        val themes = TileThemePalette.THEMES.take(4)
-        addInPlaceChipRow(
-            ctx, panel, lp,
-            options = themes.map { it.key to it.label },
-            getSelected = { lp.tileColor },
-            onSelect = { key ->
-                lp.tileColor = key
-                onLiveRefresh()
-            }
-        )
+        val themePairs = TileThemePalette.KEYS.mapIndexed { idx, key ->
+            val shortName = TileThemePalette.NAMES.getOrNull(idx)?.substringBefore(" ") ?: key
+            key to shortName
+        }
+        themePairs.chunked(4).forEach { rowChunk ->
+            addInPlaceChipRow(
+                ctx, panel, lp,
+                options = rowChunk,
+                getSelected = { lp.tileColor },
+                onSelect = { key ->
+                    lp.tileColor = key
+                    onLiveRefresh()
+                }
+            )
+        }
 
         // 7. FAVORITE BADGE STYLE (In-Place Chip Highlight — Zero Rebuild!)
         addHeader(ctx, panel, "FAVORITE BADGE")
