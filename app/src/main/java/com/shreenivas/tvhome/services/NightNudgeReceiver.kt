@@ -28,9 +28,9 @@ class NightNudgeReceiver : BroadcastReceiver() {
         // Exact checkpoints in minutes from midnight:
         // 00:00..03:30 every 10 mins | 04:00..05:30 every 30 mins | 22:30..23:45 every 15 mins
         private val CHECKPOINTS: List<Int> = buildList {
-            for (m in 0..210 step 10) add(m)        // 12:00 AM to 3:30 AM (every 10 mins)
-            for (m in 240..330 step 30) add(m)      // 4:00 AM to 5:30 AM (every 30 mins)
-            for (m in 1350..1425 step 15) add(m)    // 10:30 PM to 11:45 PM (every 15 mins)
+            for (m in 0..210 step 10) add(m)
+            for (m in 240..330 step 30) add(m)
+            for (m in 1350..1425 step 15) add(m)
         }
 
         fun scheduleNextNudge(context: Context) {
@@ -65,21 +65,23 @@ class NightNudgeReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
+        val appCtx = context.applicationContext
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+            scheduleNextNudge(appCtx)
+            return
+        }
+        if (intent?.action != ACTION_NIGHT_NUDGE) return
+
         val cal = Calendar.getInstance()
         val mins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val appCtx = context.applicationContext
-
         val (msg, durationMs, moodType) = getNudgeConfig(mins)
-        if (msg != null) {
-            showFloatingBubble(appCtx, msg, durationMs, moodType)
-        }
+        if (msg != null) showFloatingBubble(appCtx, msg, durationMs, moodType)
         scheduleNextNudge(appCtx)
     }
 
     private data class NudgeConfig(val message: String?, val durationMs: Long, val mood: Int)
 
     private fun getNudgeConfig(mins: Int): NudgeConfig = when {
-        // 10:30 PM to 11:59 PM (Every 15 mins -> 10 seconds, Indigo)
         mins >= 1350 -> NudgeConfig(
             listOf(
                 "🌙  Even the TV needs some rest now...",
@@ -91,7 +93,6 @@ class NightNudgeReceiver : BroadcastReceiver() {
             10_000L,
             1
         )
-        // 12:00 AM to 3:30 AM (Every 10 mins -> 10 seconds, Crimson/Rose)
         mins in 0..215 -> NudgeConfig(
             listOf(
                 "🦉  Midnight Owl detected! Dreams on, TV off",
@@ -103,7 +104,6 @@ class NightNudgeReceiver : BroadcastReceiver() {
             10_000L,
             2
         )
-        // 4:00 AM to 5:59 AM (Every 30 mins -> 7 seconds, Warm Sunrise)
         mins in 240..359 -> NudgeConfig(
             listOf(
                 "🌅  Got up early! Have a peaceful morning ✨",
@@ -164,7 +164,6 @@ class NightNudgeReceiver : BroadcastReceiver() {
         try {
             wm.addView(bubble, params)
             bubble.animate().alpha(1f).setDuration(350L).start()
-
             Handler(Looper.getMainLooper()).postDelayed({
                 bubble.animate().alpha(0f).setDuration(350L).withEndAction {
                     try { wm.removeView(bubble) } catch (_: Exception) {}
