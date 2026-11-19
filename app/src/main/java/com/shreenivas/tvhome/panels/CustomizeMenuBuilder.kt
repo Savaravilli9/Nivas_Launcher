@@ -86,7 +86,7 @@ object CustomizeMenuBuilder {
             onSelect = { v -> lp.panelWidthPct = v.toInt(); onLiveRefresh(); onRebuildPanel() }
         )
 
-        addHeader(ctx, panel, "TILE SHAPE")
+        addHeader(ctx, panel, "ICON SHAPE")
         addSegmentedRow(
             ctx, panel, lp, "shape",
             listOf("▢ Squircle", "◯ Circle", "♥ Heart", "▪ Classic"),
