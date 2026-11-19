@@ -77,8 +77,8 @@ object AppTileFactory {
                     if (Color.alpha(px) < 160) continue
                     val hsv = FloatArray(3)
                     Color.colorToHSV(px, hsv)
-                    val sat = hsv
-                    val valBright = hsv
+                    val sat = hsv[1]
+                    val valBright = hsv[2]
                     if (valBright < 0.25f || (sat < 0.18f && valBright > 0.85f)) continue
                     val score = (sat * 2.2f) + valBright
                     if (score > maxScore) {
@@ -90,8 +90,8 @@ object AppTileFactory {
             bmp.recycle()
             val outHsv = FloatArray(3)
             Color.colorToHSV(bestColor, outHsv)
-            outHsv = maxOf(outHsv, 0.55f)
-            outHsv = maxOf(outHsv, 0.88f)
+            outHsv[1] = maxOf(outHsv[1], 0.55f)
+            outHsv[2] = maxOf(outHsv[2], 0.88f)
             Color.HSVToColor(255, outHsv)
         } catch (_: Exception) {
             fallback
