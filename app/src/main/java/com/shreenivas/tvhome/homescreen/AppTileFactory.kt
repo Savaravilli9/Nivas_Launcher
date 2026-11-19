@@ -77,8 +77,8 @@ object AppTileFactory {
                     if (Color.alpha(px) < 160) continue
                     val hsv = FloatArray(3)
                     Color.colorToHSV(px, hsv)
-                    val sat = hsv[1]
-                    val valBright = hsv[2]
+                    val sat = hsv
+                    val valBright = hsv
                     if (valBright < 0.25f || (sat < 0.18f && valBright > 0.85f)) continue
                     val score = (sat * 2.2f) + valBright
                     if (score > maxScore) {
@@ -90,8 +90,8 @@ object AppTileFactory {
             bmp.recycle()
             val outHsv = FloatArray(3)
             Color.colorToHSV(bestColor, outHsv)
-            outHsv[1] = maxOf(outHsv[1], 0.55f)
-            outHsv[2] = maxOf(outHsv[2], 0.88f)
+            outHsv = maxOf(outHsv, 0.55f)
+            outHsv = maxOf(outHsv, 0.88f)
             Color.HSVToColor(255, outHsv)
         } catch (_: Exception) {
             fallback
@@ -126,7 +126,16 @@ object AppTileFactory {
             tag = if (isFavRow) "fav_$pkg" else "all_$pkg"
         }
 
-        val safeMargin = LauncherUtils.dp(ctx, 8)
+        val unitContainer = LinearLayout(ctx).apply {
+            tag = "unit_container"
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
+        }
+
+        // Top: Double-Shaped Glossy Icon (Outer Theme Shape + Gap + Inner Cropped Icon)
+        val iconBadgeSize = getIconBadgeSizePx(ctx, lp.tileSize)
         val innerCard = GlowTileLayout(ctx).apply {
             tag = "glow_card"
             isFocusable = false
@@ -134,40 +143,41 @@ object AppTileFactory {
             clipChildren = false
             setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appColor)
         }
-                val contentBox = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            isFocusable = false
-            isClickable = false
-        }
 
-        val imgSize = getIconSizePx(ctx, lp.tileSize)
         val iv = ImageView(ctx).apply {
             tag = "tile_icon"
             setImageDrawable(icon)
-            layoutParams = LinearLayout.LayoutParams(imgSize, imgSize).apply {
-                bottomMargin = dp(ctx, 4)
-            }
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            val pad = dp(ctx, 5)
+            setPadding(pad, pad, pad, pad)
         }
-        contentBox.addView(iv)
-
+        innerCard.addView(iv, FrameLayout.LayoutParams(-1, -1))
+        unitContainer.addView(innerCard, LinearLayout.LayoutParams(iconBadgeSize, iconBadgeSize))
+        // Bottom: Rounded Rectangle Glossy Nameplate that the Icon sits right above
+        val namePlate = FrameLayout(ctx).apply {
+            tag = "name_plate"
+            outlineProvider = null
+            setPadding(dp(ctx, 8), dp(ctx, 3), dp(ctx, 8), dp(ctx, 3))
+            background = nameplateBg(ctx, false, appColor)
+        }
         val tv = TextView(ctx).apply {
             tag = "tile_label"
             text = label
-            textSize = if (lp.columns > 6) 9f else 10.5f
+            textSize = if (lp.columns > 6) 8.8f else 10f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
-            setPadding(dp(ctx, 6), 0, dp(ctx, 6), 0)
         }
-        contentBox.addView(tv)
-        innerCard.addView(contentBox, FrameLayout.LayoutParams(-1, -1))
-        val cardParams = FrameLayout.LayoutParams(-1, -1).apply {
-            setMargins(safeMargin, safeMargin, safeMargin, safeMargin)
-        }
-        wrapper.addView(innerCard, cardParams)
+        namePlate.addView(tv, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+        unitContainer.addView(namePlate, LinearLayout.LayoutParams(-1, -2).apply {
+            leftMargin = dp(ctx, 6)
+            rightMargin = dp(ctx, 6)
+            topMargin = dp(ctx, 4)
+        })
+
+        wrapper.addView(unitContainer, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
 
         val badge = TextView(ctx).apply {
             tag = "tile_badge"
@@ -179,7 +189,7 @@ object AppTileFactory {
             gravity = Gravity.CENTER
         }
         wrapper.addView(badge, FrameLayout.LayoutParams(dp(ctx, 18), dp(ctx, 18), Gravity.TOP or Gravity.END).apply {
-            topMargin = dp(ctx, 4); rightMargin = dp(ctx, 4)
+            topMargin = dp(ctx, 2); rightMargin = dp(ctx, 8)
         })
         applyBadgeState(badge, lp, isFav)
 
@@ -192,10 +202,10 @@ object AppTileFactory {
             }
 
             innerCard.setFocusState(hasFocus)
-            MotionEngine.animateFocus(innerCard, hasFocus, lp.motionStyle, 1.13f, 16f, dx, dy)
+            namePlate.background = nameplateBg(ctx, hasFocus, appColor)
+            MotionEngine.animateFocus(unitContainer, hasFocus, lp.motionStyle, 1.11f, 12f, dx, dy)
 
             if (hasFocus) {
-                innerCard.elevation = LauncherUtils.dpF(ctx, 16f)
                 tv.isSelected = true
                 breathingAnim?.cancel()
                 breathingAnim = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -205,16 +215,15 @@ object AppTileFactory {
                     interpolator = AccelerateDecelerateInterpolator()
                     addUpdateListener { anim ->
                         val f = anim.animatedValue as Float
-                        val pulseScale = 1.12f + (0.045f * f)
-                        innerCard.scaleX = pulseScale
-                        innerCard.scaleY = pulseScale
+                        val pulseScale = 1.10f + (0.04f * f)
+                        unitContainer.scaleX = pulseScale
+                        unitContainer.scaleY = pulseScale
                         innerCard.updateGlowPulse(f)
                     }
                     start()
                 }
             } else {
                 tv.isSelected = false
-                innerCard.elevation = 0f
                 breathingAnim?.cancel()
                 breathingAnim = null
             }
@@ -264,17 +273,26 @@ object AppTileFactory {
     fun updateTileAppearance(ctx: Context, wrapper: View, lp: LauncherPreferences, isFav: Boolean) {
         val rawTag = (wrapper.tag as? String)?.removePrefix("fav_")?.removePrefix("all_") ?: ""
         val appCol = colorCache[rawTag] ?: lp.accentColor
-        wrapper.findViewWithTag<GlowTileLayout>("glow_card")?.setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appCol)
-        wrapper.findViewWithTag<ImageView>("tile_icon")?.let { iv ->
-            val size = getIconSizePx(ctx, lp.tileSize)
-            if (iv.layoutParams.width != size) {
-                iv.layoutParams.width = size
-                iv.layoutParams.height = size
-                iv.requestLayout()
+        wrapper.findViewWithTag<GlowTileLayout>("glow_card")?.let { card ->
+            val badgeSize = getIconBadgeSizePx(ctx, lp.tileSize)
+            if (card.layoutParams.width != badgeSize) {
+                card.layoutParams.width = badgeSize
+                card.layoutParams.height = badgeSize
+                card.requestLayout()
             }
+            card.setStyle(lp.accentColor, lp.tileShape, lp.tileColor, appCol)
         }
-        wrapper.findViewWithTag<TextView>("tile_label")?.textSize = if (lp.columns > 6) 9f else 10.5f
+        wrapper.findViewWithTag<TextView>("tile_label")?.textSize = if (lp.columns > 6) 8.8f else 10f
         wrapper.findViewWithTag<TextView>("tile_badge")?.let { applyBadgeState(it, lp, isFav) }
+    }
+
+    private fun nameplateBg(ctx: Context, focused: Boolean, appColor: Int) = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        if (focused) intArrayOf(LauncherUtils.withAlpha(appColor, 145), Color.argb(165, 18, 26, 52))
+        else intArrayOf(Color.argb(95, 255, 255, 255), Color.argb(55, 18, 26, 52))
+    ).apply {
+        cornerRadius = LauncherUtils.dpF(ctx, 10f)
+        setStroke(dp(ctx, if (focused) 1 else 1), if (focused) appColor else Color.argb(85, 255, 255, 255))
     }
 
     private fun applyBadgeState(badge: TextView, lp: LauncherPreferences, isFav: Boolean) {
@@ -287,10 +305,10 @@ object AppTileFactory {
         }
     }
 
-    private fun getIconSizePx(ctx: Context, tileSize: String): Int = when (tileSize) {
-        "large" -> dp(ctx, 52)
-        "small" -> dp(ctx, 34)
-        else -> dp(ctx, 42)
+    private fun getIconBadgeSizePx(ctx: Context, tileSize: String): Int = when (tileSize) {
+        "large" -> dp(ctx, 68)
+        "small" -> dp(ctx, 48)
+        else -> dp(ctx, 58)
     }
 
     private fun dp(ctx: Context, v: Int) = LauncherUtils.dp(ctx, v)
