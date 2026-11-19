@@ -96,15 +96,17 @@ class SideControlDrawer(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.argb(238, 22, 30, 68), Color.argb(244, 15, 22, 52), Color.argb(248, 10, 15, 38))
         ).apply { cornerRadius = LauncherUtils.dpF(context, 24f); setStroke(dp(1.5f), Color.argb(145, 255, 255, 255)) }
-        drawerLayout.elevation = dp(22f).toFloat()
-        scrim.setBackgroundColor(Color.TRANSPARENT); scrim.visibility = View.VISIBLE; drawerLayout.visibility = View.VISIBLE
+        drawerLayout.outlineProvider = null
+
+        scrim.setBackgroundColor(Color.TRANSPARENT)
+        scrim.visibility = View.VISIBLE
+        drawerLayout.visibility = View.VISIBLE
 
         setupDrawerSkeleton()
         populateActivePanel(true)
 
         if (!wasOpen) {
             MotionEngine.resetTransform(drawerLayout)
-            scrim.alpha = 0f; scrim.animate().alpha(1f).setDuration(360L).start()
             MotionEngine.animatePanelEnter(drawerLayout, stageWidget, dynamicDrawerW, lp.motionStyle) {}
         } else {
             activePanel?.let { MotionEngine.playDemoPreview(it, lp.motionStyle) }
@@ -116,21 +118,19 @@ class SideControlDrawer(
         isOpen = false; currentMode = ""
         val out = maxOf(dp(340f), drawerLayout.width + dp(30f))
 
-        scrim.animate().alpha(0f).setDuration(280L).start()
-
         MotionEngine.animatePanelExit(drawerLayout, stageWidget, out, lp.motionStyle) {
             scrim.visibility = View.GONE; drawerLayout.visibility = View.GONE
         }
         drawerLayout.post { onLiveRefresh() }
     }
-
     private fun setupDrawerSkeleton() {
         drawerLayout.removeAllViews()
         drawerLayout.setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
 
         val topRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4f), dp(2f), dp(2f), dp(10f))
+            clipChildren = false; clipToPadding = false
+            setPadding(dp(6f), dp(4f), dp(6f), dp(10f))
         }
 
         val (icon, title) = when (currentMode) {
@@ -167,13 +167,11 @@ class SideControlDrawer(
             clipChildren = false
             clipToPadding = false
         }
-        
         activePanel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
             setPadding(dp(6f), dp(6f), dp(6f), dp(20f))
-            }
         }
         drawerLayout.addView(activeScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         activeScroll?.addView(activePanel)
@@ -202,7 +200,8 @@ class SideControlDrawer(
         }
         if (isInitialOpen) panel.post { panel.requestFocus() }
     }
-        private fun buildControlCenter(panel: LinearLayout) {
+
+    private fun buildControlCenter(panel: LinearLayout) {
         val sysRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         sysRow.addView(text("GOOGLE TV QUICK PANELS", 9f, lp.accentColor, true)); sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         val sysBtn = text("⚙ All Settings", 9.5f, Color.WHITE, true).apply {
@@ -247,7 +246,6 @@ class SideControlDrawer(
         addActionButton(panel, "🔵", "Bluetooth Devices", "Remotes, speakers & controllers") { launch(Settings.ACTION_BLUETOOTH_SETTINGS) }
         addActionButton(panel, "📱", "Installed Apps", "Storage, cache & permissions") { launch(Settings.ACTION_APPLICATION_SETTINGS) }
     }
-
     private fun getCurrentSystemBrightnessPct(): Int {
         return try {
             val raw = Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 200)
@@ -367,7 +365,7 @@ class SideControlDrawer(
 
         val isMuted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am?.isStreamMute(AudioManager.STREAM_MUSIC) == true else false
         addActionButton(panel, if (isMuted) "🔇" else "🔈", if (isMuted) "Unmute TV Audio" else "Mute TV Audio", "Instant audio toggle") {
-                        am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
+            am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
             populateActivePanel(false)
         }
         addActionButton(panel, "⚙", "System Sound Settings", "Dolby, eARC & equalizer") { launch(Settings.ACTION_SOUND_SETTINGS) }
@@ -498,71 +496,71 @@ class SideControlDrawer(
         card.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5f) }); panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
     }
 
-fun showProfileEditDialog() {
-    val box = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(20f), dp(14f), dp(20f), dp(12f))
-    }
-    val nameInput = EditText(context).apply {
-        isSingleLine = true
-        hint = "Enter Profile Name"
-        setText(lp.userName)
-        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-    }
-    box.addView(nameInput)
-
-    val pickPicBtn = TextView(context).apply {
-        text = "🖼  Choose Profile Picture"
-        textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER; isFocusable = true; setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
-        background = glassCardBg(true)
-        setOnClickListener { onPickProfilePic() }
-    }
-    box.addView(pickPicBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12f) })
-
-    val picToolsRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-    val zoomInBtn = TextView(context).apply {
-        text = "Zoom +"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
-        setOnClickListener {
-            val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) + 0.15f).coerceAtMost(2.2f)
-            lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
-            onLiveRefresh()
+    fun showProfileEditDialog() {
+        val box = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20f), dp(14f), dp(20f), dp(12f))
         }
-    }
-    val zoomOutBtn = TextView(context).apply {
-        text = "Zoom -"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
-        setOnClickListener {
-            val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) - 0.15f).coerceAtLeast(1.0f)
-            lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
-            onLiveRefresh()
+        val nameInput = EditText(context).apply {
+            isSingleLine = true
+            hint = "Enter Profile Name"
+            setText(lp.userName)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
         }
-    }
-    val removePicBtn = TextView(context).apply {
-        text = "Remove"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 120, 130))
-        gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
-        setOnClickListener {
-            lp.prefs.edit().remove("profile_pic_uri").putFloat("profile_pic_zoom", 1.0f).apply()
-            onLiveRefresh()
-            Toast.makeText(context, "Profile picture removed", Toast.LENGTH_SHORT).show()
-        }
-    }
-    picToolsRow.addView(zoomInBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
-    picToolsRow.addView(zoomOutBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
-    picToolsRow.addView(removePicBtn, LinearLayout.LayoutParams(0, -2, 1f))
-    box.addView(picToolsRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f) })
+        box.addView(nameInput)
 
-    AlertDialog.Builder(context).setTitle("Profile Settings").setView(box).setPositiveButton("Save") { _, _ ->
-        lp.userName = nameInput.text.toString().trim()
-        onLiveRefresh()
-        if (isOpen) populateActivePanel(false)
-    }.setNegativeButton("Cancel", null).show()
-}
+        val pickPicBtn = TextView(context).apply {
+            text = "🖼  Choose Profile Picture"
+            textSize = 11f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER; isFocusable = true; setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
+            background = glassCardBg(true)
+            setOnClickListener { onPickProfilePic() }
+        }
+        box.addView(pickPicBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12f) })
+
+        val picToolsRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        val zoomInBtn = TextView(context).apply {
+            text = "Zoom +"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+            setOnClickListener {
+                val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) + 0.15f).coerceAtMost(2.2f)
+                lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
+                onLiveRefresh()
+            }
+        }
+        val zoomOutBtn = TextView(context).apply {
+            text = "Zoom -"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+            setOnClickListener {
+                val z = (lp.prefs.getFloat("profile_pic_zoom", 1.0f) - 0.15f).coerceAtLeast(1.0f)
+                lp.prefs.edit().putFloat("profile_pic_zoom", z).apply()
+                onLiveRefresh()
+            }
+        }
+        val removePicBtn = TextView(context).apply {
+            text = "Remove"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 120, 130))
+            gravity = Gravity.CENTER; isFocusable = true; setPadding(0, dp(8f), 0, dp(8f)); background = glassCardBg(false)
+            setOnClickListener {
+                lp.prefs.edit().remove("profile_pic_uri").putFloat("profile_pic_zoom", 1.0f).apply()
+                onLiveRefresh()
+                Toast.makeText(context, "Profile picture removed", Toast.LENGTH_SHORT).show()
+            }
+        }
+        picToolsRow.addView(zoomInBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
+        picToolsRow.addView(zoomOutBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(6f) })
+        picToolsRow.addView(removePicBtn, LinearLayout.LayoutParams(0, -2, 1f))
+        box.addView(picToolsRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8f) })
+
+        AlertDialog.Builder(context).setTitle("Profile Settings").setView(box).setPositiveButton("Save") { _, _ ->
+            lp.userName = nameInput.text.toString().trim()
+            onLiveRefresh()
+            if (isOpen) populateActivePanel(false)
+        }.setNegativeButton("Cancel", null).show()
+    }
 
     private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
         val card = LinearLayout(context).apply {
-                        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
             setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
             setOnClickListener { act() }
         }
@@ -586,7 +584,6 @@ fun showProfileEditDialog() {
             }
         }
     }
-
     private fun xBtnBg(foc: Boolean) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255)); setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255)) }
     private fun glassCardBg(foc: Boolean) = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255)) else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))).apply { cornerRadius = LauncherUtils.dpF(context, 14f); setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255)) }
     private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply { text = v; textSize = sz; setTextColor(col); if (bld) typeface = Typeface.DEFAULT_BOLD }
