@@ -435,11 +435,11 @@ class AmbientStageWidget(
                     if (cityName.isEmpty()) cityName = "Visakhapatnam"
                 }
 
-                val wUrl = "https://api." + "://open-meteo.com" + lat + "&longitude=" + lon + "&current_weather=true"
+                val wUrl = "https://api." + "://open-meteo.com" + lat + "&longitude=" + lon + "&current=temperature_2m,weather_code"
                 val wJson = JSONObject(fetchUrl(wUrl))
-                val cw = wJson.getJSONObject("current_weather")
-                val temp = "${cw.getDouble("temperature").toInt()}°C"
-                val code = cw.getInt("weathercode")
+                val cw = wJson.getJSONObject("current")
+                val temp = "${cw.getDouble("temperature_2m").toInt()}°C"
+                val code = cw.getInt("weather_code")
                 val (emoji, desc) = decodeWeatherCode(code)
 
                 lp.prefs.edit()
