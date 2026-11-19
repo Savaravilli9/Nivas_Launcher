@@ -317,7 +317,7 @@ class AmbientStageWidget(
     private fun fetchCitySuggestions(query: String): List<CitySuggestion> {
         return try {
             val encoded = URLEncoder.encode(query, "UTF-8")
-            val url = "https://open-meteo.com"
+            val url = "https://geocoding-api." + "://open-meteo.com" + encoded + "&count=5&language=en&format=json"
             val rawResponse = fetchUrl(url)
             val json = JSONObject(rawResponse)
             val arr = json.optJSONArray("results") ?: return emptyList()
@@ -394,7 +394,7 @@ class AmbientStageWidget(
                     if (cityName.isEmpty()) cityName = "Visakhapatnam"
                 }
 
-                val wUrl = "https://open-meteo.com"
+                val url = "https://geocoding-api." + "://open-meteo.com" + encoded + "&count=5&language=en&format=json"
                 val wJson = JSONObject(fetchUrl(wUrl))
                 val cw = wJson.getJSONObject("current_weather")
                 val temp = "${cw.getDouble("temperature").toInt()}°C"
