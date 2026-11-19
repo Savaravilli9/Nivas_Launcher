@@ -209,7 +209,7 @@ class TopNavBar(
             tag = "nav_profile"
             isFocusable = true
             isClickable = true
-            elevation = LauncherUtils.dpF(context, 14f)
+            outlineProvider = null
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(lp.accentColor)
