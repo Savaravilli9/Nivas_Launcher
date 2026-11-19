@@ -116,7 +116,7 @@ object WifiPanelBuilder {
                 onRefreshPanel()
                 panel.post { panel.findViewWithTag<android.view.View>("btn_wifi_refresh")?.requestFocus() }
             }.apply { tag = "btn_wifi_refresh" },
-            LinearLayout.LayoutParams(0, dp(ctx, 38), 1f).apply { rightMargin = dp(6) }
+            LinearLayout.LayoutParams(0, dp(ctx, 38), 1f).apply { rightMargin = dp(ctx, 6) }
         )
         actionRow.addView(
             makeGlassBtn(ctx, lp, "⚙  TV Wi-Fi Settings") {
