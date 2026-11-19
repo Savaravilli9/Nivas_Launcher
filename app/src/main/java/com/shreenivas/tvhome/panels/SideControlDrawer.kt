@@ -2,7 +2,6 @@ package com.shreenivas.tvhome.panels
 
 import android.app.Activity
 import android.app.ActivityManager
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -14,11 +13,9 @@ import android.media.tv.TvInputManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -53,6 +50,8 @@ class SideControlDrawer(
         const val MODE_SUB_INPUTS = "sub_inputs"
         const val MODE_SUB_PICTURE = "sub_picture"
         const val MODE_SUB_SOUND = "sub_sound"
+        const val MODE_SUB_BLUETOOTH = "sub_bluetooth"
+        const val MODE_SUB_STORAGE = "sub_storage"
     }
 
     var isOpen = false
@@ -123,6 +122,7 @@ class SideControlDrawer(
         }
         drawerLayout.post { onLiveRefresh() }
     }
+
     private fun setupDrawerSkeleton() {
         drawerLayout.removeAllViews()
         drawerLayout.setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
@@ -140,8 +140,10 @@ class SideControlDrawer(
             MODE_POWER -> "⏻  " to "Power & System"
             MODE_WALLPAPER_EDIT -> "🖼  " to "Wallpaper Studio"
             MODE_SUB_INPUTS -> "📺  " to "TV Inputs & HDMI"
-            MODE_SUB_PICTURE -> "🎨  " to "Picture & Display"
+            MODE_SUB_PICTURE -> "☀  " to "Display & Sleep Timer"
             MODE_SUB_SOUND -> "🔊  " to "Sound & Audio Out"
+            MODE_SUB_BLUETOOTH -> "🔵  " to "Bluetooth & Remotes"
+            MODE_SUB_STORAGE -> "💾  " to "Storage & Installed Apps"
             else -> "⚡  " to "Control Center"
         }
         topRow.addView(text("$icon$title", 13.5f, Color.WHITE, true))
@@ -179,10 +181,6 @@ class SideControlDrawer(
 
     private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
-        val focusedIndex = if (!isInitialOpen) {
-            (0 until panel.childCount).firstOrNull { panel.getChildAt(it).hasFocus() } ?: -1
-        } else -1
-
         panel.removeAllViews()
 
         when (currentMode) {
@@ -200,91 +198,36 @@ class SideControlDrawer(
             MODE_SUB_INPUTS -> buildInputsSubPanel(panel)
             MODE_SUB_PICTURE -> buildPictureSubPanel(panel)
             MODE_SUB_SOUND -> buildSoundSubPanel(panel)
+            MODE_SUB_BLUETOOTH -> SystemSubPanels.buildBluetoothPanel(context, panel, lp) { open(MODE_QUICK) }
+            MODE_SUB_STORAGE -> SystemSubPanels.buildStorageAndAppsPanel(context, panel, lp) { open(MODE_QUICK) }
             else -> buildControlCenter(panel)
         }
-
-        panel.post {
-            if (isInitialOpen) {
-                panel.requestFocus()
-            } else if (focusedIndex in 0 until panel.childCount) {
-                panel.getChildAt(focusedIndex).requestFocus()
-            }
-        }
+        if (isInitialOpen) panel.post { panel.requestFocus() }
     }
+        private fun buildControlCenter(panel: LinearLayout) {
+        addLabel(panel, "SYSTEM CONTROLS (IN-APP GLOSSY)")
 
-    private data class SystemTileSpec(
-        val icon: String,
-        val title: String,
-        val sub: String,
-        val actions: List<String>,
-        val fallbackAction: (() -> Unit)? = null
-    )
+        val r1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
+        r1.addView(makeGridTile("☀", "Display", "$selectedPicturePreset • $brightnessPct%") { open(MODE_SUB_PICTURE) }, LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
+        r1.addView(makeGridTile("🔊", "Sound", getActiveAudioDeviceName().removeSuffix(" ›")) { open(MODE_SUB_SOUND) }, LinearLayout.LayoutParams(0, dp(56f), 1f))
+        panel.addView(r1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
 
-    private fun buildControlCenter(panel: LinearLayout) {
-        val sysRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        sysRow.addView(text("SYSTEM CONTROLS", 9f, lp.accentColor, true))
-        sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-        val sysBtn = text("⚙ All Settings", 9.5f, Color.WHITE, true).apply {
-            setPadding(dp(10f), dp(4f), dp(10f), dp(4f)); isFocusable = true; background = glassCardBg(false)
-            setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.04f, 3f); v.background = glassCardBg(f) }
-            setOnClickListener { launch(Settings.ACTION_SETTINGS) }
-        }
-        sysRow.addView(sysBtn)
-        panel.addView(sysRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
+        val r2 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
+        r2.addView(makeGridTile("📶", "Wi-Fi", "Manage & Connect") { open(MODE_WIFI) }, LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
+        r2.addView(makeGridTile("🔵", "Bluetooth", "Remotes & Audio") { open(MODE_SUB_BLUETOOTH) }, LinearLayout.LayoutParams(0, dp(56f), 1f))
+        panel.addView(r2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
 
-        // Candidate system capabilities — automatically filtered by what actually exists on this TV/Box!
-        val candidates = listOf(
-            SystemTileSpec("🖼", "Screensaver", "Ambient display", listOf(Settings.ACTION_DREAM_SETTINGS, "com.android.tv.settings.DAYDREAM")) { open(MODE_WALLPAPER_EDIT) },
-            SystemTileSpec("📺", "TV Inputs", "HDMI & Sources", listOf("android.media.tv.action.SETUP_INPUTS", "com.android.tv.action.VIEW_INPUTS")),
-            SystemTileSpec("☀", "Display", "Picture & HDR", listOf("com.android.tv.settings.DISPLAY", Settings.ACTION_DISPLAY_SETTINGS)) { open(MODE_SUB_PICTURE) },
-            SystemTileSpec("🔊", "Sound", getActiveAudioDeviceName().removeSuffix(" ›"), listOf("com.android.tv.settings.SOUND", Settings.ACTION_SOUND_SETTINGS)) { open(MODE_SUB_SOUND) },
-            SystemTileSpec("📶", "Wi-Fi", "Network settings", listOf(Settings.ACTION_WIFI_SETTINGS, "com.android.tv.settings.NETWORK")) { open(MODE_WIFI) },
-            SystemTileSpec("🔵", "Bluetooth", "Remotes & Audio", listOf(Settings.ACTION_BLUETOOTH_SETTINGS, "com.android.tv.settings.ACCESSORIES")),
-            SystemTileSpec("📡", "Cast", "Chromecast built-in", listOf(Settings.ACTION_CAST_SETTINGS, "com.google.android.gms.cast.settings.CastSettingsActivity")),
-            SystemTileSpec("💾", "Storage", "Internal & USB", listOf(Settings.ACTION_INTERNAL_STORAGE_SETTINGS, Settings.ACTION_MEMORY_CARD_SETTINGS)),
-            SystemTileSpec("📱", "Apps", "Manage TV apps", listOf(Settings.ACTION_APPLICATION_SETTINGS, "com.android.tv.settings.APPS")),
-            SystemTileSpec("♿", "Accessibility", "Captions & TalkBack", listOf(Settings.ACTION_ACCESSIBILITY_SETTINGS, "com.android.tv.settings.ACCESSIBILITY"))
-        )
+        val r3 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
+        r3.addView(makeGridTile("📺", "TV Inputs", "HDMI & Live TV") { open(MODE_SUB_INPUTS) }, LinearLayout.LayoutParams(0, dp(56f), 1f).apply { rightMargin = dp(6f) })
+        r3.addView(makeGridTile("💾", "Storage & Apps", "Space & App Info") { open(MODE_SUB_STORAGE) }, LinearLayout.LayoutParams(0, dp(56f), 1f))
+        panel.addView(r3, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
 
-        // Filter dynamically using PackageManager so ONLY features actually supported by this device appear!
-        val pm = context.packageManager
-        val activeTiles = candidates.mapNotNull { spec ->
-            val resolvedIntent = spec.actions.firstNotNullOfOrNull { act ->
-                val intent = Intent(act).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (pm.resolveActivity(intent, 0) != null) intent else null
-            }
-            when {
-                resolvedIntent != null -> spec to { try { context.startActivity(resolvedIntent) } catch (_: Exception) { spec.fallbackAction?.invoke() } }
-                spec.fallbackAction != null -> spec to spec.fallbackAction
-                else -> null
-            }
+        addLabel(panel, "LIVE HARDWARE SLIDERS")
+        addSliderCard(panel, "☀  Screen Brightness", brightnessPct) { p ->
+            brightnessPct = p
+            applyRealBrightness(p)
         }
 
-        // Automatically render discovered system controls in 2-column glossy glass rows
-        for (i in activeTiles.indices step 2) {
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                clipChildren = false
-                clipToPadding = false
-            }
-            val (firstSpec, firstClick) = activeTiles[i]
-            row.addView(
-                makeGridTile(firstSpec.icon, firstSpec.title, firstSpec.sub, firstClick),
-                LinearLayout.LayoutParams(0, dp(56f), 1f).apply {
-                    if (i + 1 < activeTiles.size) rightMargin = dp(6f)
-                }
-            )
-            if (i + 1 < activeTiles.size) {
-                val (secondSpec, secondClick) = activeTiles[i + 1]
-                row.addView(
-                    makeGridTile(secondSpec.icon, secondSpec.title, secondSpec.sub, secondClick),
-                    LinearLayout.LayoutParams(0, dp(56f), 1f)
-                )
-            }
-            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
-        }
-
-        // Live Volume Slider (Directly controls TV Hardware Audio Volume)
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val maxVol = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
         val curVol = am?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 10
@@ -293,7 +236,6 @@ class SideControlDrawer(
             am?.setStreamVolume(AudioManager.STREAM_MUSIC, ((p / 100f) * maxVol).toInt(), AudioManager.FLAG_SHOW_UI)
         }
 
-        // In-place Boost Memory card (Zero-Rebuild, focus never resets)
         val ramCard = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
@@ -311,16 +253,14 @@ class SideControlDrawer(
             ramSubTv.text = getRamStatusText()
             Toast.makeText(context, "Memory optimized!", Toast.LENGTH_SHORT).show()
         }
-        panel.addView(ramCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
+        panel.addView(ramCard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4f); bottomMargin = dp(6f) })
     }
-    
+
     private fun getCurrentSystemBrightnessPct(): Int {
         return try {
             val raw = Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 200)
             ((raw / 255f) * 100f).toInt().coerceIn(10, 100)
-        } catch (_: Exception) {
-            85
-        }
+        } catch (_: Exception) { 85 }
     }
 
     private fun applyRealBrightness(pct: Int) {
@@ -342,22 +282,15 @@ class SideControlDrawer(
         addLabel(panel, "DETECTED TV & HDMI INPUTS")
         val tvMgr = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
         val inputs = try { tvMgr?.tvInputList ?: emptyList() } catch (_: Exception) { emptyList() }
-
         if (inputs.isEmpty()) {
-            addActionButton(panel, "🔌", "HDMI 1 / External Source", "Open TV Input Switcher") {
-                launch("android.media.tv.action.SETUP_INPUTS")
-            }
-            addActionButton(panel, "📡", "Live Channels / TV", "Open Live TV tuner") {
-                try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("content://android.media.tv/channel"))) } catch (_: Exception) { launch(Settings.ACTION_SETTINGS) }
-            }
+            panel.addView(text("No external HDMI tuner inputs reported by TV hardware.", 9.5f, Color.LTGRAY, false).apply {
+                setPadding(dp(4f), dp(8f), dp(4f), dp(12f))
+            })
         } else {
             for (inp in inputs) {
                 val lbl = try { inp.loadLabel(context).toString() } catch (_: Exception) { inp.id }
                 addActionButton(panel, "📺", lbl, "Tap to switch input source") {
-                    try {
-                        val i = inp.createSetupIntent() ?: Intent(Settings.ACTION_SETTINGS)
-                        context.startActivity(i)
-                    } catch (_: Exception) { launch(Settings.ACTION_SETTINGS) }
+                    try { inp.createSetupIntent()?.let { context.startActivity(it) } } catch (_: Exception) {}
                 }
             }
         }
@@ -366,85 +299,85 @@ class SideControlDrawer(
 
     private fun buildPictureSubPanel(panel: LinearLayout) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
-            addActionButton(panel, "🔓", "Grant System Brightness Access", "Allow launcher to control hardware backlight") {
-                try {
-                    val i = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))
-                    context.startActivity(i)
-                } catch (_: Exception) { launch(Settings.ACTION_DISPLAY_SETTINGS) }
+            addActionButton(panel, "🔓", "Enable Hardware Backlight Control", "One-time permission to write system brightness") {
+                try { context.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))) } catch (_: Exception) {}
             }
         }
-
         addLabel(panel, "PICTURE PRESET MODES")
         val presets = listOf("Standard", "Cinema / Movie", "Vivid", "Night Eye-Care")
         val presetBrightness = listOf(80, 65, 100, 35)
+        val presetCards = ArrayList<Pair<LinearLayout, TextView>>()
 
         presets.forEachIndexed { idx, name ->
             val isSel = selectedPicturePreset == name
+            val titleTv = text(if (isSel) "✓  $name" else "○  $name", 10.5f, if (isSel) lp.accentColor else Color.WHITE, true)
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(isSel)
-                setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 3f); v.background = glassCardBg(f || isSel) }
+                setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 3f); v.background = glassCardBg(f || selectedPicturePreset == name) }
                 setOnClickListener {
                     selectedPicturePreset = name
                     brightnessPct = presetBrightness[idx]
                     applyRealBrightness(brightnessPct)
-                    populateActivePanel(false)
+                    presetCards.forEachIndexed { i, (cView, tView) ->
+                        val active = presets[i] == selectedPicturePreset
+                        tView.text = if (active) "✓  ${presets[i]}" else "○  ${presets[i]}"
+                        tView.setTextColor(if (active) lp.accentColor else Color.WHITE)
+                        cView.background = glassCardBg(cView.hasFocus() || active)
+                    }
                 }
             }
-            card.addView(text(if (isSel) "✓  $name" else "○  $name", 10.5f, if (isSel) lp.accentColor else Color.WHITE, true), LinearLayout.LayoutParams(0, -2, 1f))
+            card.addView(titleTv, LinearLayout.LayoutParams(0, -2, 1f))
             card.addView(text("${presetBrightness[idx]}%", 9f, Color.argb(190, 220, 235, 255), true))
+            presetCards.add(card to titleTv)
             panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
         }
 
-        addLabel(panel, "SYSTEM DISPLAY MODES")
-        val modes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            (context as? Activity)?.windowManager?.defaultDisplay?.supportedModes?.take(3) ?: emptyList()
-        } else emptyList()
-
-        for (m in modes) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                addActionButton(panel, "🖥", "${m.physicalWidth} × ${m.physicalHeight}", "${m.refreshRate.toInt()} Hz Native Resolution") {
-                    launch(Settings.ACTION_DISPLAY_SETTINGS)
-                }
-            }
-        }
-        addActionButton(panel, "⚙", "System Display Settings", "HDR, resolution & color space") { launch(Settings.ACTION_DISPLAY_SETTINGS) }
-        addBackSubButton(panel)
+        SystemSubPanels.buildDisplayTimeoutAndNightPanel(context, panel, lp) { open(MODE_QUICK) }
     }
 
     private fun buildSoundSubPanel(panel: LinearLayout) {
         addLabel(panel, "ACTIVE AUDIO OUTPUT")
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        val devices = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.toList() ?: emptyList()
-        } else emptyList()
-
+        val devices = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.toList() ?: emptyList() else emptyList()
         if (devices.isEmpty()) {
-            addActionButton(panel, "🔊", "TV Internal Speakers", "Default stereo output") { launch(Settings.ACTION_SOUND_SETTINGS) }
+            addActionButton(panel, "🔊", "TV Internal Speakers", "Default stereo output") {}
         } else {
             devices.distinctBy { it.type }.take(4).forEach { dev ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val dName = mapAudioType(dev.type)
-                    val pName = dev.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Active Output"
-                    addActionButton(panel, "🎧", dName, pName) { launch(Settings.ACTION_SOUND_SETTINGS) }
+                    addActionButton(panel, "🎧", mapAudioType(dev.type), dev.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Connected Output") {}
                 }
             }
         }
 
-        val isMuted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am?.isStreamMute(AudioManager.STREAM_MUSIC) == true else false
-        addActionButton(panel, if (isMuted) "🔇" else "🔈", if (isMuted) "Unmute TV Audio" else "Mute TV Audio", "Instant audio toggle") {
-            am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
-            populateActivePanel(false)
+        val muteCard = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+            setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
         }
-        addActionButton(panel, "⚙", "System Sound Settings", "Dolby, eARC & equalizer") { launch(Settings.ACTION_SOUND_SETTINGS) }
+        val initialMuted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am?.isStreamMute(AudioManager.STREAM_MUSIC) == true else false
+        val muteIconTv = text(if (initialMuted) "🔇" else "🔈", 14f, lp.accentColor, true).apply { setPadding(0, 0, dp(10f), 0) }
+        val muteTitleTv = text(if (initialMuted) "Unmute TV Audio" else "Mute TV Audio", 10.5f, Color.WHITE, true)
+        val muteMid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+                muteMid.addView(muteTitleTv)
+        muteMid.addView(text("Instant audio toggle", 8.5f, Color.argb(185, 210, 230, 245), false))
+        muteCard.addView(muteIconTv)
+        muteCard.addView(muteMid, LinearLayout.LayoutParams(0, -2, 1f))
+        muteCard.addView(text("›", 15f, Color.argb(180, 255, 255, 255), true))
+        muteCard.setOnClickListener {
+            am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
+            val nowMuted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am?.isStreamMute(AudioManager.STREAM_MUSIC) == true else !initialMuted
+            muteIconTv.text = if (nowMuted) "🔇" else "🔈"
+            muteTitleTv.text = if (nowMuted) "Unmute TV Audio" else "Mute TV Audio"
+        }
+        panel.addView(muteCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
         addBackSubButton(panel)
     }
 
     private fun addBackSubButton(panel: LinearLayout) {
         val backBtn = TextView(context).apply {
             text = "‹  Back to Control Center"; textSize = 10.5f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
-            background = glassCardBg(true)
+            setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true; background = glassCardBg(true)
             setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.03f, 3f) }
             setOnClickListener { open(MODE_QUICK) }
         }
@@ -453,8 +386,7 @@ class SideControlDrawer(
 
     private fun getActiveAudioDeviceName(): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            val out = am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.lastOrNull()
+            val out = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.lastOrNull()
             if (out != null) return "${mapAudioType(out.type)} ›"
         }
         return "TV Speakers ›"
@@ -468,22 +400,17 @@ class SideControlDrawer(
         else -> "TV Speakers"
     }
 
-    private fun getRamStatusText(): String {
-        return try {
-            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val mi = ActivityManager.MemoryInfo()
-            am.getMemoryInfo(mi)
-            val freeMb = mi.availMem / (1024 * 1024)
-            val totalMb = mi.totalMem / (1024 * 1024)
-            "Free: ${freeMb}MB / ${totalMb}MB • Tap to boost"
-        } catch (_: Exception) { "Optimize background memory" }
-    }
+    private fun getRamStatusText(): String = try {
+        val mi = ActivityManager.MemoryInfo()
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(mi)
+        "Free: ${mi.availMem / (1024 * 1024)}MB / ${mi.totalMem / (1024 * 1024)}MB • Tap to boost"
+    } catch (_: Exception) { "Optimize background memory" }
 
     private fun buildRealAlertsPanel(panel: LinearLayout) {
         if (!TvNotificationService.isPermissionGranted(context)) {
             addLabel(panel, "PERMISSION REQUIRED")
             addActionButton(panel, "🔓", "Enable Notification Access", "Allow Shree TV Home to show real system & app alerts") {
-                launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                try { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) {}
             }
             return
         }
@@ -502,9 +429,7 @@ class SideControlDrawer(
                     TvNotificationService.clearAllAlerts()
                     listHolder.removeAllViews()
                     headerCountTv.text = "LIVE SYSTEM ALERTS (0)"
-                    listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
-                        gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
-                    })
+                    listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply { gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f)) })
                 }
             }
             topBar.addView(clearAllBtn)
@@ -513,9 +438,7 @@ class SideControlDrawer(
         panel.addView(listHolder, LinearLayout.LayoutParams(-1, -2))
 
         if (alerts.isEmpty()) {
-            listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
-                gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
-            })
+            listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply { gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f)) })
             return
         }
         for (item in alerts) {
@@ -528,11 +451,7 @@ class SideControlDrawer(
                 listHolder.removeView(card)
                 val rem = TvNotificationService.getAlerts().size
                 headerCountTv.text = "LIVE SYSTEM ALERTS ($rem)"
-                if (rem == 0) {
-                    listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply {
-                        gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f))
-                    })
-                }
+                if (rem == 0) listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply { gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f)) })
             }
             val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             row1.addView(text("🔔  ${item.appName}", 9f, lp.accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
@@ -545,15 +464,14 @@ class SideControlDrawer(
     }
 
     private fun buildPowerPanel(panel: LinearLayout) {
-        addLabel(panel, "DEVICE POWER & REBOOT")
-        addActionButton(panel, "🌙", "Sleep / Screensaver", "Put TV display to rest") {
+        addLabel(panel, "DEVICE POWER & LAUNCHER")
+        addActionButton(panel, "🌙", "Sleep / Lock Display", "Turn off screen / enter standby") {
             try { context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) } catch (_: Exception) {}
             close()
         }
-        addActionButton(panel, "🔄", "Refresh Launcher", "Reload all installed TV apps") {
+        addActionButton(panel, "🔄", "Refresh All Apps", "Reload app icons and grid") {
             AppGridManager.clearCache(); onLiveRefresh(); close()
         }
-        addActionButton(panel, "⚙", "Android TV Settings", "Device preferences & reboot") { launch(Settings.ACTION_SETTINGS) }
     }
 
     private fun makeGridTile(icon: String, title: String, sub: String, onClick: () -> Unit) = LinearLayout(context).apply {
@@ -588,7 +506,73 @@ class SideControlDrawer(
             if (isOpen) populateActivePanel(false)
         }
     }
-    
+
+    private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+            setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
+                        }
+            card.setOnClickListener {
+                TvNotificationService.dismissAlert(item.key)
+                listHolder.removeView(card)
+                val rem = TvNotificationService.getAlerts().size
+                headerCountTv.text = "LIVE SYSTEM ALERTS ($rem)"
+                if (rem == 0) listHolder.addView(text("No active notifications right now", 10.5f, Color.argb(180, 210, 230, 250), false).apply { gravity = Gravity.CENTER; setPadding(0, dp(28f), 0, dp(28f)) })
+            }
+            val row1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            row1.addView(text("🔔  ${item.appName}", 9f, lp.accentColor, true), LinearLayout.LayoutParams(0, -2, 1f))
+            row1.addView(text("${item.timeStr}  ✕", 8.5f, Color.argb(180, 255, 255, 255), true))
+            card.addView(row1)
+            card.addView(text(item.title, 10.5f, Color.WHITE, true).apply { isSingleLine = true; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(3f), 0, dp(1f)) })
+            card.addView(text(item.text, 9f, Color.argb(195, 215, 232, 250), false).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+            listHolder.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
+        }
+    }
+
+    private fun buildPowerPanel(panel: LinearLayout) {
+        addLabel(panel, "DEVICE POWER & LAUNCHER")
+        addActionButton(panel, "🌙", "Sleep / Lock Display", "Turn off screen / enter standby") {
+            try { context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) } catch (_: Exception) {}
+            close()
+        }
+        addActionButton(panel, "🔄", "Refresh All Apps", "Reload app icons and grid") {
+            AppGridManager.clearCache(); onLiveRefresh(); close()
+        }
+    }
+
+    private fun makeGridTile(icon: String, title: String, sub: String, onClick: () -> Unit) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10f), dp(6f), dp(10f), dp(6f)); isFocusable = true; background = glassCardBg(false)
+        setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.03f, 4f); v.background = glassCardBg(f) }
+        setOnClickListener { onClick() }
+        addView(text("$icon  $title", 10f, Color.WHITE, true))
+        addView(text(sub, 8.2f, lp.accentColor, false).apply { isSingleLine = true; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(2f), 0, 0) })
+    }
+
+    private fun addSliderCard(panel: LinearLayout, label: String, initialPct: Int, onChange: (Int) -> Unit) {
+        val card = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); background = glassCardBg(false) }
+        val top = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        val pct = text("$initialPct%", 10.5f, lp.accentColor, true)
+        top.addView(text(label, 10.5f, Color.WHITE, true)); top.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); top.addView(pct)
+        card.addView(top)
+        val sb = SeekBar(context).apply {
+            max = 100; progress = initialPct; isFocusable = true
+            setOnFocusChangeListener { _, f -> card.background = glassCardBg(f) }
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, user: Boolean) { pct.text = "$p%"; if (user) onChange(p) }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+        }
+        card.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5f) }); panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(7f) })
+    }
+
+    fun showProfileEditDialog() {
+        ProfileCropDialog.show(context, lp, onPickProfilePic) {
+            onLiveRefresh()
+            if (isOpen) populateActivePanel(false)
+        }
+    }
+
     private fun addActionButton(panel: LinearLayout, icon: String, title: String, sub: String, act: () -> Unit) {
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
@@ -602,19 +586,6 @@ class SideControlDrawer(
         panel.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
 
-    private fun launch(act: String) {
-        try { context.startActivity(Intent(act)) } catch (_: Exception) {
-            val fallback = when (act) {
-                Settings.ACTION_DISPLAY_SETTINGS -> Intent("com.android.tv.settings.DISPLAY")
-                Settings.ACTION_SOUND_SETTINGS -> Intent("com.android.tv.settings.SOUND")
-                Settings.ACTION_APPLICATION_SETTINGS -> Intent("com.android.tv.settings.DEVICE_INFO")
-                else -> Intent(Settings.ACTION_SETTINGS)
-            }
-            try { context.startActivity(fallback) } catch (_: Exception) {
-                try { context.startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) { Toast.makeText(context, "Settings unavailable on this TV", Toast.LENGTH_SHORT).show() }
-            }
-        }
-    }
     private fun xBtnBg(foc: Boolean) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (foc) Color.argb(165, 255, 75, 85) else Color.argb(55, 255, 255, 255)); setStroke(dp(1f), if (foc) Color.WHITE else Color.argb(85, 255, 255, 255)) }
     private fun glassCardBg(foc: Boolean) = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, if (foc) intArrayOf(Color.argb(115, 255, 255, 255), Color.argb(75, 255, 255, 255)) else intArrayOf(Color.argb(52, 255, 255, 255), Color.argb(26, 255, 255, 255))).apply { cornerRadius = LauncherUtils.dpF(context, 14f); setStroke(dp(if (foc) 2f else 1f), if (foc) lp.accentColor else Color.argb(65, 255, 255, 255)) }
     private fun text(v: String, sz: Float, col: Int, bld: Boolean) = TextView(context).apply { text = v; textSize = sz; setTextColor(col); if (bld) typeface = Typeface.DEFAULT_BOLD }
