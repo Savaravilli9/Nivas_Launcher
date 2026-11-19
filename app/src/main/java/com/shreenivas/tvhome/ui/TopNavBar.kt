@@ -93,7 +93,7 @@ class TopNavBar(
     init {
         clipChildren = false
         clipToPadding = false
-        setPadding(dp(4), dp(14), dp(6), dp(12))
+        setPadding(dp(4), dp(22), dp(6), dp(22))
         
         val barHeight = dp(38)
         val avatarSize = dp(92) // Large 2.5x Hero Profile Avatar centered on TopNavBar centerline
@@ -299,16 +299,30 @@ class TopNavBar(
     }
 
     private fun makeCircularBitmap(src: Bitmap): Bitmap {
-        val size = minOf(src.width, src.height)
-        val x = (src.width - size) / 2
-        val y = (src.height - size) / 2
-        val squared = Bitmap.createBitmap(src, x, y, size, size)
-        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val outSize = 240
+        val output = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = BitmapShader(squared, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        val r = size / 2f
-        canvas.drawCircle(r, r, r, paint)
+        val cx = outSize / 2f
+        val cy = outSize / 2f
+        val r = outSize / 2f
+
+        val clipPath = android.graphics.Path().apply { addCircle(cx, cy, r, android.graphics.Path.Direction.CW) }
+        canvas.clipPath(clipPath)
+
+        val zoom = lp.prefs.getFloat("profile_pic_zoom", 1.0f)
+        val panX = lp.prefs.getFloat("profile_pic_pan_x", 0f)
+        val panY = lp.prefs.getFloat("profile_pic_pan_y", 0f)
+
+        val baseScale = maxOf(outSize.toFloat() / src.width, outSize.toFloat() / src.height)
+        val finalScale = baseScale * zoom
+
+        val matrix = android.graphics.Matrix().apply {
+            postTranslate(-src.width / 2f, -src.height / 2f)
+            postScale(finalScale, finalScale)
+            postTranslate(cx + (panX * r), cy + (panY * r))
+        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(src, matrix, paint)
         return output
     }
 
