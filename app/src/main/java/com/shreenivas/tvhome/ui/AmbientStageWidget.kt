@@ -174,15 +174,18 @@ class AmbientStageWidget(
     )
 
     private fun showLiveCitySearchDialog() {
+        val dialog = android.app.Dialog(context)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
         val box = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(dp(20), dp(14), dp(20), dp(12))
+            setPadding(dp(22), dp(16), dp(22), dp(16))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.rgb(20, 32, 62), Color.rgb(12, 18, 38))
             ).apply {
                 cornerRadius = LauncherUtils.dpF(context, 20f)
-                setStroke(dp(1), Color.argb(95, 255, 255, 255))
+                setStroke(dp(1), Color.argb(120, 255, 255, 255))
             }
         }
 
@@ -197,7 +200,9 @@ class AmbientStageWidget(
 
         val input = EditText(context).apply {
             isSingleLine = true
-            hint = "Type city name (e.g. Vizianagaram, Visakhapatnam...)"
+            isFocusable = true
+            isFocusableInTouchMode = true
+            hint = "Type city (e.g. Vizianagaram, Hyderabad...)"
             setText(lp.weatherCity)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.argb(150, 200, 220, 245))
@@ -209,10 +214,10 @@ class AmbientStageWidget(
                 setStroke(dp(1), lp.accentColor)
             }
         }
-        box.addView(input)
+        box.addView(input, LayoutParams(dp(340), -2))
 
         val statusTv = TextView(context).apply {
-            text = "Start typing at least 2 letters for live suggestions..."
+            text = "Type at least 2 letters for live suggestions..."
             textSize = 10.5f
             setTextColor(Color.rgb(145, 215, 255))
             setPadding(dp(4), dp(8), dp(4), dp(6))
@@ -224,8 +229,12 @@ class AmbientStageWidget(
         }
         box.addView(suggestionsContainer)
 
-        val dialog = AlertDialog.Builder(context).setView(box).create()
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.setContentView(box)
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        }
 
         var searchRunnable: Runnable? = null
 
@@ -238,11 +247,13 @@ class AmbientStageWidget(
                 statusTv.text = "Searching '$q'..."
                 searchRunnable = Runnable {
                     thread {
-                        val list = fetchCitySuggestions(q)
+                        val (list, errMsg) = fetchCitySuggestionsWithStatus(q)
                         uiHandler.post {
                             suggestionsContainer.removeAllViews()
-                            if (list.isEmpty()) {
-                                statusTv.text = "No cities found for '$q'. Check internet connection."
+                            if (errMsg != null) {
+                                statusTv.text = "Network error: $errMsg"
+                            } else if (list.isEmpty()) {
+                                statusTv.text = "No cities found for '$q'"
                             } else {
                                 statusTv.text = "Select a city below:"
                                 for (item in list) {
@@ -314,13 +325,16 @@ class AmbientStageWidget(
         }
     }
 
-    private fun fetchCitySuggestions(query: String): List<CitySuggestion> {
+    private fun fetchCitySuggestions(query: String): List<CitySuggestion> =
+        fetchCitySuggestionsWithStatus(query).first
+
+    private fun fetchCitySuggestionsWithStatus(query: String): Pair<List<CitySuggestion>, String?> {
         return try {
             val encoded = URLEncoder.encode(query, "UTF-8")
             val url = "https://geocoding-api." + "://open-meteo.com" + encoded + "&count=5&language=en&format=json"
             val rawResponse = fetchUrl(url)
             val json = JSONObject(rawResponse)
-            val arr = json.optJSONArray("results") ?: return emptyList()
+            val arr = json.optJSONArray("results") ?: return emptyList<CitySuggestion>() to null
             val out = ArrayList<CitySuggestion>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
@@ -334,11 +348,12 @@ class AmbientStageWidget(
                     )
                 )
             }
-            out
-        } catch (_: Exception) {
-            emptyList()
+            out to null
+        } catch (e: Exception) {
+            emptyList<CitySuggestion>() to (e.message ?: e.javaClass.simpleName)
         }
     }
+
     fun refreshStyle() {
         val accent = lp.accentColor
         amPmTv.setTextColor(accent)
