@@ -1,10 +1,5 @@
 package com.shreenivas.tvhome.homescreen
 
-import com.shreenivas.tvhome.LauncherPreferences
-import com.shreenivas.tvhome.ui.TileThemePalette
-import com.shreenivas.tvhome.LauncherUtils
-
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,44 +7,64 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
-import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
+import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.ui.TileThemePalette
 
 class GlowTileLayout(context: Context) : FrameLayout(context) {
-    private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val glassSheenPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val outerCardPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val outerSheenPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val spotlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val outerBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val innerRimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val outerHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    
+    private val deepAuraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
     private val rectF = RectF()
     private val sheenRect = RectF()
-    private val shapePath = Path()
+    private val outerPath = Path()
+    private val innerIconPath = Path()
 
     private var tileFocused = false
-    private var pulseAlpha = 0.4f
-    private var breathingAnimator: ValueAnimator? = null
+    private var glowIntensity = 0f
     private var accentColor = Color.rgb(92, 184, 255)
-    private var tileShape = "squircle"
+    private var appDominantColor = Color.rgb(92, 184, 255)
+    private var iconShape = "squircle"
     private var tileKey = "frost"
 
     init {
         setWillNotDraw(false)
         clipChildren = false
         clipToPadding = false
+        outlineProvider = null
     }
 
-    fun setStyle(color: Int, shape: String?, themeKey: String?) {
+    fun setStyle(color: Int, shape: String?, themeKey: String?, dominantColor: Int = color) {
         accentColor = color
-        tileShape = shape ?: "squircle"
-        this.tileKey = themeKey ?: "frost"
+        appDominantColor = dominantColor
+        iconShape = shape ?: "squircle"
+        tileKey = themeKey ?: "frost"
         if (width > 0 && height > 0) {
-            buildShapePath(width.toFloat(), height.toFloat())
+            buildDoublePaths(width.toFloat(), height.toFloat())
             updateShaders(width.toFloat(), height.toFloat())
         }
+        invalidate()
+    }
+
+    fun setFocusState(focused: Boolean) {
+        if (tileFocused == focused) return
+        tileFocused = focused
+        if (!focused) glowIntensity = 0f
+        if (width > 0 && height > 0) {
+            updateShaders(width.toFloat(), height.toFloat())
+        }
+        invalidate()
+    }
+
+    fun updateGlowPulse(intensity: Float) {
+        glowIntensity = intensity.coerceIn(0f, 1f)
         invalidate()
     }
 
@@ -57,142 +72,138 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
         super.onSizeChanged(w, h, oldw, oldh)
         val wf = w.toFloat()
         val hf = h.toFloat()
-        buildShapePath(wf, hf)
+        buildDoublePaths(wf, hf)
         updateShaders(wf, hf)
     }
 
     private fun updateShaders(w: Float, h: Float) {
         if (w <= 0f || h <= 0f) return
-        
+
         val colors = TileThemePalette.getTopBottomColors(tileKey, tileFocused)
-        cardPaint.shader = LinearGradient(0f, 0f, 0f, h, colors, null, Shader.TileMode.CLAMP)
+        outerCardPaint.shader = LinearGradient(0f, 0f, 0f, h, colors, null, Shader.TileMode.CLAMP)
 
         sheenRect.set(0f, 0f, w, h * 0.50f)
-        glassSheenPaint.shader = LinearGradient(
+        outerSheenPaint.shader = LinearGradient(
             0f, 0f, 0f, h * 0.50f,
-            Color.argb(if (tileFocused) 115 else 68, 255, 255, 255),
-            Color.argb(6, 255, 255, 255),
+            Color.argb(if (tileFocused) 135 else 78, 255, 255, 255),
+            Color.argb(8, 255, 255, 255),
             Shader.TileMode.CLAMP
         )
 
         if (tileFocused) {
-            val centerGlow = LauncherUtils.withAlpha(accentColor, 130)
+            val centerGlow = LauncherUtils.withAlpha(appDominantColor, 175)
             spotlightPaint.shader = RadialGradient(
-                w / 2f, h * 0.42f, maxOf(w, h) * 0.58f,
+                w / 2f, h * 0.45f, maxOf(w, h) * 0.70f,
                 centerGlow, Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
-            borderPaint.shader = null
+            outerBorderPaint.shader = null
         } else {
-            borderPaint.shader = LinearGradient(
+            outerBorderPaint.shader = LinearGradient(
                 0f, 0f, 0f, h,
-                Color.argb(120, 255, 255, 255),
-                Color.argb(30, 255, 255, 255),
+                Color.argb(150, 255, 255, 255),
+                Color.argb(40, 255, 255, 255),
                 Shader.TileMode.CLAMP
             )
         }
     }
 
-    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
-        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        tileFocused = gainFocus
-
-        updateShaders(width.toFloat(), height.toFloat())
-
-        animate().cancel()
-        animate()
-            .scaleX(if (gainFocus) 1.08f else 1.0f)
-            .scaleY(if (gainFocus) 1.08f else 1.0f)
-            .translationZ(if (gainFocus) dp(12f) else 0f)
-            .setDuration(if (gainFocus) 220L else 150L)
-            .setInterpolator(LauncherUtils.FLUID_SPRING)
-            .start()
-
-        if (gainFocus) startBreathing() else stopBreathing()
-        invalidate()
+    private fun buildDoublePaths(w: Float, h: Float) {
+        val outerInset = dp(1.5f)
+        val visibleGap = dp(7.5f) // Visible gap between Outer Theme Shape and Inner Icon Shape
+        buildShapeIntoPath(outerPath, w, h, outerInset)
+        buildShapeIntoPath(innerIconPath, w, h, outerInset + visibleGap)
     }
 
-    private fun startBreathing() {
-        breathingAnimator?.cancel()
-        breathingAnimator = ValueAnimator.ofFloat(0.28f, 0.72f).apply {
-            duration = 1300L
-            repeatMode = ValueAnimator.REVERSE
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener {
-                pulseAlpha = it.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
-    }
+    private fun buildShapeIntoPath(target: Path, w: Float, h: Float, inset: Float) {
+        target.reset()
+        val sw = w - inset * 2f
+        val sh = h - inset * 2f
+        if (sw <= 0f || sh <= 0f) return
 
-    private fun stopBreathing() {
-        breathingAnimator?.cancel()
-        pulseAlpha = 0f
-    }
+        // Force 1:1 square bounding box centered inside the view so Heart & Circle NEVER stretch vertically
+        val s = minOf(sw, sh)
+        val left = (w - s) / 2f
+        val top = (h - s) / 2f
+        val right = left + s
+        val bottom = top + s
+        val cx = w / 2f
+        val cy = h / 2f
 
-    private fun buildShapePath(w: Float, h: Float) {
-        shapePath.reset()
-        val pad = dp(2.5f)
-        when (tileShape) {
+        when (iconShape) {
             "heart" -> {
-                val cx = w / 2f
-                val topY = h * 0.22f
-                val botY = h - pad * 2f
-                val leftX = w * 0.12f
-                val rightX = w * 0.88f
-                shapePath.moveTo(cx, botY)
-                shapePath.cubicTo(leftX - w * 0.08f, h * 0.65f, leftX, h * 0.12f, cx, topY + h * 0.08f)
-                shapePath.cubicTo(rightX, h * 0.12f, rightX + w * 0.08f, h * 0.65f, cx, botY)
-                shapePath.close()
+                val topDipY = top + s * 0.26f
+                val bottomTipY = bottom - s * 0.04f
+                target.moveTo(cx, bottomTipY)
+                target.cubicTo(
+                    left - s * 0.06f, top + s * 0.62f,
+                    left + s * 0.02f, top + s * 0.04f,
+                    cx, topDipY
+                )
+                target.cubicTo(
+                    right - s * 0.02f, top + s * 0.04f,
+                    right + s * 0.06f, top + s * 0.62f,
+                    cx, bottomTipY
+                )
+                target.close()
             }
             "circle" -> {
-                val r = (minOf(w, h) / 2f) - pad
-                shapePath.addCircle(w / 2f, h / 2f, r, Path.Direction.CW)
+                target.addCircle(cx, cy, s / 2f, Path.Direction.CW)
             }
             else -> {
-                val radius = if (tileShape == "classic") dp(6f) else dp(20f)
-                rectF.set(pad, pad, w - pad, h - pad)
-                shapePath.addRoundRect(rectF, radius, radius, Path.Direction.CW)
+                val radius = if (iconShape == "classic") dp(6f) else dp(18f)
+                rectF.set(left, top, right, bottom)
+                target.addRoundRect(rectF, radius, radius, Path.Direction.CW)
             }
         }
     }
 
-    override fun onDraw(canvas: Canvas) {
+    override fun dispatchDraw(canvas: Canvas) {
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
-        canvas.drawPath(shapePath, cardPaint)
-
-        canvas.save()
-        canvas.clipPath(shapePath)
-        canvas.drawRect(sheenRect, glassSheenPaint)
-
+        // 1. Ambient App-Based Glow when focused
         if (tileFocused) {
+            deepAuraPaint.strokeWidth = dp(10f) + (dp(5f) * glowIntensity)
+            deepAuraPaint.color = LauncherUtils.withAlpha(appDominantColor, (50 + 80 * glowIntensity).toInt())
+            canvas.drawPath(outerPath, deepAuraPaint)
+
+            outerHaloPaint.strokeWidth = dp(4.5f) + (dp(2.5f) * glowIntensity)
+            outerHaloPaint.color = LauncherUtils.withAlpha(appDominantColor, (130 + 115 * glowIntensity).toInt())
+            canvas.drawPath(outerPath, outerHaloPaint)
+        }
+
+        // 2. Outer Shape (Theme Palette + Glossy Sheen)
+        canvas.drawPath(outerPath, outerCardPaint)
+        canvas.save()
+        canvas.clipPath(outerPath)
+        canvas.drawRect(sheenRect, outerSheenPaint)
+        if (tileFocused) {
+            spotlightPaint.alpha = (180 + 75 * glowIntensity).toInt()
             canvas.drawRect(0f, 0f, w, h, spotlightPaint)
         }
         canvas.restore()
 
+        // 3. Outer Glossy Edge Border
         if (tileFocused) {
-            outerHaloPaint.strokeWidth = dp(5.5f)
-            outerHaloPaint.color = LauncherUtils.withAlpha(accentColor, (pulseAlpha * 255).toInt())
-            canvas.drawPath(shapePath, outerHaloPaint)
-
-            borderPaint.strokeWidth = dp(2.2f)
-            borderPaint.color = accentColor
-            canvas.drawPath(shapePath, borderPaint)
+            outerBorderPaint.strokeWidth = dp(2.2f)
+            outerBorderPaint.color = appDominantColor
+            canvas.drawPath(outerPath, outerBorderPaint)
         } else {
-            borderPaint.strokeWidth = dp(1f)
-            canvas.drawPath(shapePath, borderPaint)
+            outerBorderPaint.strokeWidth = dp(1.2f)
+            canvas.drawPath(outerPath, outerBorderPaint)
         }
 
-        super.onDraw(canvas)
-    }
+        // 4. Inner Shape: Crop & Fill the App Icon inside innerIconPath (leaving visible gap)
+        canvas.save()
+        canvas.clipPath(innerIconPath)
+        super.dispatchDraw(canvas)
+        canvas.restore()
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        stopBreathing()
+        // 5. Crisp Inner Glossy Rim around the cropped icon
+        innerRimPaint.strokeWidth = dp(1.2f)
+        innerRimPaint.color = if (tileFocused) Color.argb(215, 255, 255, 255) else Color.argb(115, 255, 255, 255)
+        canvas.drawPath(innerIconPath, innerRimPaint)
     }
 
     private fun dp(value: Float) = LauncherUtils.dpF(context, value)

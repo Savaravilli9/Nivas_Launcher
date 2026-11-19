@@ -1,30 +1,28 @@
 package com.shreenivas.tvhome.ui
 
-import android.Manifest
 import android.app.AlertDialog
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.location.Geocoder
-import android.location.Location
-import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import com.shreenivas.tvhome.LauncherPreferences
 import com.shreenivas.tvhome.LauncherUtils
+import com.shreenivas.tvhome.MotionEngine
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -42,7 +40,7 @@ class AmbientStageWidget(
     private val lp: LauncherPreferences
 ) : LinearLayout(ctx) {
 
-    private val analogView = ColorfulAnalogClockView(ctx)
+    private val analogView = ClassicLuxuryClockView(ctx)
     private val digitalTimeTv = TextView(ctx)
     private val amPmTv = TextView(ctx)
     private val dateTv = TextView(ctx)
@@ -66,30 +64,30 @@ class AmbientStageWidget(
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(dp(14), dp(16), dp(14), dp(16))
+        setPadding(dp(14), dp(14), dp(14), dp(14))
 
         background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.argb(135, 22, 32, 72), Color.argb(175, 12, 18, 44))
+            intArrayOf(Color.argb(145, 20, 30, 68), Color.argb(185, 10, 16, 40))
         ).apply {
             cornerRadius = LauncherUtils.dpF(ctx, 24f)
-            setStroke(dp(1), Color.argb(95, 255, 255, 255))
+            setStroke(dp(1), Color.argb(105, 255, 255, 255))
         }
 
-        addView(analogView, LayoutParams(dp(148), dp(148)).apply { bottomMargin = dp(10) })
+        addView(analogView, LayoutParams(dp(166), dp(166)).apply { bottomMargin = dp(8) })
 
         val timeRow = LinearLayout(ctx).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
         }
         digitalTimeTv.apply {
-            textSize = 26f
+            textSize = 28f
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setShadowLayer(6f, 0f, 2f, Color.argb(140, 0, 0, 0))
+            setShadowLayer(6f, 0f, 2f, Color.argb(150, 0, 0, 0))
         }
         amPmTv.apply {
-            textSize = 11f
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(lp.accentColor)
             setPadding(dp(5), 0, 0, dp(4))
@@ -99,11 +97,12 @@ class AmbientStageWidget(
         addView(timeRow)
 
         dateTv.apply {
-            textSize = 11.5f
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.argb(215, 210, 232, 255))
+            letterSpacing = 0.03f
+            setTextColor(Color.rgb(225, 240, 255))
             gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(14))
+            setPadding(0, dp(3), 0, dp(12))
         }
         addView(dateTv)
 
@@ -115,17 +114,17 @@ class AmbientStageWidget(
             setPadding(dp(12), dp(11), dp(12), dp(11))
             background = weatherCardBg(false)
             setOnFocusChangeListener { v, f ->
-                LauncherUtils.applyFocusSpring(v, f, 1.04f, 6f)
+                MotionEngine.animateFocus(v, f, lp.motionStyle, 1.04f, 6f)
                 v.background = weatherCardBg(f)
             }
-            setOnClickListener { showCitySearchDialog() }
+            setOnClickListener { showLiveCitySearchDialog() }
         }
 
         val wTop = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER }
-        weatherIconTv.apply { text = "⛅"; textSize = 26f; setPadding(0, 0, dp(8), 0) }
+        weatherIconTv.apply { text = "⛅"; textSize = 28f; setPadding(0, 0, dp(8), 0) }
         tempTv.apply {
             text = lp.prefs.getString("cached_temp", "28°C") ?: "28°C"
-            textSize = 22f
+            textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
         }
@@ -135,19 +134,20 @@ class AmbientStageWidget(
 
         condTv.apply {
             text = lp.prefs.getString("cached_cond", "Pleasant Sky") ?: "Pleasant Sky"
-            textSize = 10.5f
+            textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.rgb(145, 225, 255))
             gravity = Gravity.CENTER
-            setPadding(0, dp(3), 0, dp(2))
+            setPadding(0, dp(3), 0, dp(3))
         }
         weatherCard.addView(condTv)
 
-        val savedCity = lp.prefs.getString("cached_city", lp.weatherCity.ifBlank { "Detecting City..." })
+        val savedCity = lp.prefs.getString("cached_city", lp.weatherCity.ifBlank { "Tap to Select City" })
         cityTv.apply {
             text = "📍 $savedCity  ▾"
-            textSize = 9.5f
-            setTextColor(Color.argb(215, 220, 238, 255))
+            textSize = 10.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
         weatherCard.addView(cityTv)
@@ -165,59 +165,219 @@ class AmbientStageWidget(
         cornerRadius = LauncherUtils.dpF(context, 18f)
         setStroke(dp(if (focused) 2 else 1), if (focused) lp.accentColor else Color.argb(80, 255, 255, 255))
     }
-        private fun showCitySearchDialog() {
+    private data class CitySuggestion(
+        val name: String,
+        val admin: String,
+        val country: String,
+        val lat: Double,
+        val lon: Double
+    )
+
+    private fun showLiveCitySearchDialog() {
+        val dialog = android.app.Dialog(context)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
         val box = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(dp(20), dp(12), dp(20), dp(8))
+            setPadding(dp(22), dp(16), dp(22), dp(16))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(20, 32, 62), Color.rgb(12, 18, 38))
+            ).apply {
+                cornerRadius = LauncherUtils.dpF(context, 20f)
+                setStroke(dp(1), Color.argb(120, 255, 255, 255))
+            }
         }
+
+        val headerTv = TextView(context).apply {
+            text = "Search Your City (Live Weather)"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(10))
+        }
+        box.addView(headerTv)
+
         val input = EditText(context).apply {
             isSingleLine = true
-            hint = "Enter city name (e.g. Visakhapatnam)"
+            isFocusable = true
+            isFocusableInTouchMode = true
+            hint = "Type city (e.g. Vizianagaram, Hyderabad...)"
             setText(lp.weatherCity)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.argb(150, 200, 220, 245))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            background = GradientDrawable().apply {
+                setColor(Color.argb(55, 255, 255, 255))
+                cornerRadius = LauncherUtils.dpF(context, 12f)
+                setStroke(dp(1), lp.accentColor)
+            }
         }
-        box.addView(input)
+        box.addView(input, LayoutParams(dp(340), -2))
 
-        val quickCities = listOf("Visakhapatnam", "Hyderabad", "Vijayawada", "Bengaluru", "Chennai")
-        val hintTv = TextView(context).apply {
-            text = "Quick Select or Leave Blank for Auto-Location:"
-            textSize = 11f
-            setTextColor(Color.LTGRAY)
-            setPadding(0, dp(10), 0, dp(6))
+        val statusTv = TextView(context).apply {
+            text = "Type at least 2 letters for live suggestions..."
+            textSize = 10.5f
+            setTextColor(Color.rgb(145, 215, 255))
+            setPadding(dp(4), dp(8), dp(4), dp(6))
         }
-        box.addView(hintTv)
+        box.addView(statusTv)
 
-        val chipRow = LinearLayout(context).apply { orientation = HORIZONTAL }
-        quickCities.take(3).forEachIndexed { idx, cName ->
-            val btn = TextView(context).apply {
-                text = cName; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; isFocusable = true
-                setPadding(dp(8), dp(6), dp(8), dp(6))
-                background = GradientDrawable().apply {
-                    setColor(Color.argb(65, 92, 168, 255))
-                    cornerRadius = LauncherUtils.dpF(context, 10f)
+        val suggestionsContainer = LinearLayout(context).apply {
+            orientation = VERTICAL
+        }
+        box.addView(suggestionsContainer)
+
+        dialog.setContentView(box)
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        }
+
+        var searchRunnable: Runnable? = null
+
+        val triggerSearch: (String) -> Unit = { q ->
+            searchRunnable?.let { uiHandler.removeCallbacks(it) }
+            if (q.length < 2) {
+                suggestionsContainer.removeAllViews()
+                statusTv.text = "Type at least 2 characters..."
+            } else {
+                statusTv.text = "Searching '$q'..."
+                searchRunnable = Runnable {
+                    thread {
+                        val (list, errMsg) = fetchCitySuggestionsWithStatus(q)
+                        uiHandler.post {
+                            suggestionsContainer.removeAllViews()
+                            if (errMsg != null) {
+                                statusTv.text = "Network error: $errMsg"
+                            } else if (list.isEmpty()) {
+                                statusTv.text = "No cities found for '$q'"
+                            } else {
+                                statusTv.text = "Select a city below:"
+                                for (item in list) {
+                                    val sub = listOf(item.admin, item.country).filter { it.isNotBlank() }.joinToString(", ")
+                                    val rowBtn = LinearLayout(context).apply {
+                                        orientation = VERTICAL
+                                        isFocusable = true
+                                        isClickable = true
+                                        setPadding(dp(12), dp(8), dp(12), dp(8))
+                                        background = GradientDrawable().apply {
+                                            setColor(Color.argb(42, 255, 255, 255))
+                                            cornerRadius = LauncherUtils.dpF(context, 10f)
+                                            setStroke(dp(1), Color.argb(60, 255, 255, 255))
+                                        }
+                                        setOnFocusChangeListener { v, f ->
+                                            v.background = GradientDrawable().apply {
+                                                setColor(if (f) LauncherUtils.withAlpha(lp.accentColor, 140) else Color.argb(42, 255, 255, 255))
+                                                cornerRadius = LauncherUtils.dpF(context, 10f)
+                                                setStroke(dp(if (f) 2 else 1), if (f) Color.WHITE else Color.argb(60, 255, 255, 255))
+                                            }
+                                        }
+                                        setOnClickListener {
+                                            lp.weatherCity = item.name
+                                            lp.prefs.edit()
+                                                .putString("cached_city", item.name)
+                                                .putFloat("saved_lat", item.lat.toFloat())
+                                                .putFloat("saved_lon", item.lon.toFloat())
+                                                .apply()
+                                            cityTv.text = "📍 ${item.name}  ▾"
+                                            dialog.dismiss()
+                                            triggerWeatherRefresh(true)
+                                        }
+                                    }
+                                    rowBtn.addView(TextView(context).apply {
+                                        text = "📍 ${item.name}"
+                                        textSize = 12f
+                                        typeface = Typeface.DEFAULT_BOLD
+                                        setTextColor(Color.WHITE)
+                                    })
+                                    if (sub.isNotEmpty()) {
+                                        rowBtn.addView(TextView(context).apply {
+                                            text = sub
+                                            textSize = 9.5f
+                                            setTextColor(Color.argb(200, 210, 230, 255))
+                                        })
+                                    }
+                                    suggestionsContainer.addView(rowBtn, LayoutParams(-1, -2).apply { bottomMargin = dp(6) })
+                                }
+                            }
+                        }
+                    }
                 }
-                setOnClickListener { input.setText(cName) }
+                uiHandler.postDelayed(searchRunnable!!, 300L)
             }
-            chipRow.addView(btn, LayoutParams(0, -2, 1f).apply { if (idx < 2) rightMargin = dp(4) })
         }
-        box.addView(chipRow)
 
-        AlertDialog.Builder(context)
-            .setTitle("Weather Location")
-            .setView(box)
-            .setPositiveButton("Apply City") { _, _ ->
-                lp.weatherCity = input.text.toString().trim()
-                cityTv.text = "📍 Updating..."
-                triggerWeatherRefresh(true)
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                triggerSearch(s?.toString()?.trim().orEmpty())
             }
-            .setNeutralButton("Auto-Detect") { _, _ ->
-                lp.weatherCity = ""
-                cityTv.text = "📍 Auto-Detecting..."
-                triggerWeatherRefresh(true)
+        })
+
+        dialog.show()
+        input.requestFocus()
+        if (input.text.toString().trim().length >= 2) {
+            triggerSearch(input.text.toString().trim())
+        }
+    }
+
+    private fun fetchCitySuggestions(query: String): List<CitySuggestion> =
+        fetchCitySuggestionsWithStatus(query).first
+
+    private fun fetchCitySuggestionsWithStatus(query: String): Pair<List<CitySuggestion>, String?> {
+        // 1. Try Open-Meteo Geocoding API first
+        try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val url = "https://geocoding-api." + "://open-meteo.com" + encoded + "&count=5&language=en&format=json"
+            val rawResponse = fetchUrl(url)
+            val json = JSONObject(rawResponse)
+            val arr = json.optJSONArray("results")
+            if (arr != null && arr.length() > 0) {
+                val out = ArrayList<CitySuggestion>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    out.add(
+                        CitySuggestion(
+                            name = obj.optString("name"),
+                            admin = obj.optString("admin1"),
+                            country = obj.optString("country"),
+                            lat = obj.getDouble("latitude"),
+                            lon = obj.getDouble("longitude")
+                        )
+                    )
+                }
+                return out to null
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        } catch (_: Exception) {
+            // Fallback to Android Geocoder below
+        }
+
+        // 2. Fallback: Built-in Android Geocoder (works even if Open-Meteo is blocked)
+        return try {
+            @Suppress("DEPRECATION")
+            val addresses = android.location.Geocoder(context, Locale.getDefault()).getFromLocationName(query, 5)
+            if (!addresses.isNullOrEmpty()) {
+                val out = addresses.mapNotNull { addr ->
+                    val cName = addr.locality ?: addr.subAdminArea ?: addr.featureName ?: return@mapNotNull null
+                    CitySuggestion(
+                        name = cName,
+                        admin = addr.adminArea ?: "",
+                        country = addr.countryName ?: "",
+                        lat = addr.latitude,
+                        lon = addr.longitude
+                    )
+                }
+                if (out.isNotEmpty()) out to null else emptyList<CitySuggestion>() to null
+            } else {
+                emptyList<CitySuggestion>() to null
+            }
+        } catch (e: Exception) {
+            emptyList<CitySuggestion>() to (e.message ?: "Check TV Internet")
+        }
     }
 
     fun refreshStyle() {
@@ -227,83 +387,59 @@ class AmbientStageWidget(
         weatherCard.background = weatherCardBg(weatherCard.hasFocus())
 
         val isNarrow = lp.panelWidthPct <= 22
-        val dialSize = if (isNarrow) dp(112) else dp(148)
+        val dialSize = if (isNarrow) dp(126) else dp(166)
         analogView.layoutParams.width = dialSize
         analogView.layoutParams.height = dialSize
-        digitalTimeTv.textSize = if (isNarrow) 21f else 26f
+        digitalTimeTv.textSize = if (isNarrow) 22f else 28f
+        dateTv.textSize = if (isNarrow) 12f else 14f
         analogView.requestLayout()
     }
 
     fun triggerWeatherRefresh(force: Boolean = false) {
         val now = System.currentTimeMillis()
-        if (!force && now - lastWeatherFetchMs < 30 * 60 * 1000L) return
+        if (!force && now - lastWeatherFetchMs < 20 * 60 * 1000L) return
         lastWeatherFetchMs = now
 
         thread {
             try {
-                var lat = 0.0
-                var lon = 0.0
-                var hasCoords = false
+                var lat = lp.prefs.getFloat("saved_lat", 0f).toDouble()
+                var lon = lp.prefs.getFloat("saved_lon", 0f).toDouble()
                 var cityName = lp.weatherCity.trim()
 
-                if (cityName.isNotEmpty()) {
-                    val encoded = URLEncoder.encode(cityName, "UTF-8")
-                    val geoUrl = "https://open-meteo.com"
-                    val geoJson = JSONObject(fetchUrl(geoUrl))
-                    val results = geoJson.optJSONArray("results")
-                    if (results != null && results.length() > 0) {
-                        val first = results.getJSONObject(0)
-                        lat = first.getDouble("latitude")
-                        lon = first.getDouble("longitude")
-                        cityName = first.optString("name", cityName)
-                        hasCoords = true
-                    } else {
-                        uiHandler.post { Toast.makeText(context, "City not found, using auto location", Toast.LENGTH_SHORT).show() }
+                if (cityName.isNotEmpty() && (lat == 0.0 || lon == 0.0)) {
+                    val found = fetchCitySuggestions(cityName).firstOrNull()
+                    if (found != null) {
+                        lat = found.lat
+                        lon = found.lon
+                        cityName = found.name
+                        lp.prefs.edit()
+                            .putFloat("saved_lat", lat.toFloat())
+                            .putFloat("saved_lon", lon.toFloat())
+                            .apply()
                     }
                 }
 
-                if (!hasCoords && context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-                    val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-                    var bestLoc: Location? = null
-                    for (p in providers) {
-                        val l = try { lm?.getLastKnownLocation(p) } catch (_: Exception) { null }
-                        if (l != null && (bestLoc == null || l.time > bestLoc.time)) bestLoc = l
-                    }
-                    if (bestLoc != null) {
-                        lat = bestLoc.latitude
-                        lon = bestLoc.longitude
-                        hasCoords = true
-                        @Suppress("DEPRECATION")
-                        val list = try { Geocoder(context, Locale.getDefault()).getFromLocation(lat, lon, 1) } catch (_: Exception) { null }
-                        cityName = list?.firstOrNull()?.locality ?: ""
-                    }
-                }
-
-                if (!hasCoords || cityName.isEmpty()) {
+                if (lat == 0.0 && lon == 0.0) {
                     try {
                         val ipJson = JSONObject(fetchUrl("http://ip-api.com"))
                         if (ipJson.optString("status") == "success") {
-                            if (!hasCoords) {
-                                lat = ipJson.getDouble("lat")
-                                lon = ipJson.getDouble("lon")
-                                hasCoords = true
-                            }
+                            lat = ipJson.getDouble("lat")
+                            lon = ipJson.getDouble("lon")
                             if (cityName.isEmpty()) cityName = ipJson.optString("city", "Visakhapatnam")
                         }
                     } catch (_: Exception) {}
                 }
 
-                if (!hasCoords) {
+                if (lat == 0.0 && lon == 0.0) {
                     lat = 17.6868; lon = 83.2185
                     if (cityName.isEmpty()) cityName = "Visakhapatnam"
                 }
 
-                val wUrl = "https://open-meteo.com"
+                val wUrl = "https://api." + "://open-meteo.com" + lat + "&longitude=" + lon + "&current=temperature_2m,weather_code"
                 val wJson = JSONObject(fetchUrl(wUrl))
-                val cw = wJson.getJSONObject("current_weather")
-                val temp = "${cw.getDouble("temperature").toInt()}°C"
-                val code = cw.getInt("weathercode")
+                val cw = wJson.getJSONObject("current")
+                val temp = "${cw.getDouble("temperature_2m").toInt()}°C"
+                val code = cw.getInt("weather_code")
                 val (emoji, desc) = decodeWeatherCode(code)
 
                 lp.prefs.edit()
@@ -326,8 +462,11 @@ class AmbientStageWidget(
 
     private fun fetchUrl(urlStr: String): String {
         val conn = URL(urlStr).openConnection() as HttpURLConnection
-        conn.connectTimeout = 6000
-        conn.readTimeout = 6000
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android TV; ShreeTVLauncher)")
+        conn.setRequestProperty("Accept", "application/json")
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
         return conn.inputStream.bufferedReader().use { it.readText() }
     }
 
@@ -346,7 +485,7 @@ class AmbientStageWidget(
         val now = Date()
         digitalTimeTv.text = SimpleDateFormat("hh:mm", Locale.getDefault()).format(now)
         amPmTv.text = SimpleDateFormat("a", Locale.getDefault()).format(now).uppercase(Locale.ROOT)
-        dateTv.text = SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(now)
+        dateTv.text = SimpleDateFormat("EEEE • d MMM", Locale.getDefault()).format(now)
     }
 
     override fun onAttachedToWindow() {
@@ -362,10 +501,15 @@ class AmbientStageWidget(
 
     private fun dp(v: Int) = LauncherUtils.dp(context, v)
 
-        private class ColorfulAnalogClockView(ctx: Context) : View(ctx) {
-        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private class ClassicLuxuryClockView(ctx: Context) : View(ctx) {
+        private val bezelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val innerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val dialPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
         private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+        private val numPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create("serif", Typeface.BOLD)
+        }
         private val handPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
         private var accent = Color.rgb(92, 184, 255)
 
@@ -377,24 +521,44 @@ class AmbientStageWidget(
             val cx = w / 2f; val cy = h / 2f
             val r = minOf(cx, cy) - LauncherUtils.dpF(context, 4f)
 
-            dialPaint.shader = LinearGradient(0f, 0f, w, h, Color.argb(190, 28, 42, 92), Color.argb(220, 12, 18, 42), Shader.TileMode.CLAMP)
+            dialPaint.shader = RadialGradient(
+                cx, cy * 0.85f, r,
+                intArrayOf(Color.rgb(34, 48, 96), Color.rgb(16, 24, 54), Color.rgb(8, 12, 28)),
+                floatArrayOf(0f, 0.72f, 1f),
+                Shader.TileMode.CLAMP
+            )
             canvas.drawCircle(cx, cy, r, dialPaint)
 
-            ringPaint.strokeWidth = LauncherUtils.dpF(context, 2.8f)
-            ringPaint.shader = LinearGradient(0f, 0f, w, h, accent, Color.rgb(255, 95, 165), Shader.TileMode.CLAMP)
-            canvas.drawCircle(cx, cy, r, ringPaint)
+            bezelPaint.strokeWidth = LauncherUtils.dpF(context, 3.2f)
+            bezelPaint.shader = LinearGradient(0f, 0f, w, h, accent, Color.rgb(225, 238, 255), Shader.TileMode.CLAMP)
+            canvas.drawCircle(cx, cy, r, bezelPaint)
 
-            for (i in 0 until 12) {
-                val ang = Math.toRadians((i * 30 - 90).toDouble())
-                val isMajor = i % 3 == 0
-                tickPaint.strokeWidth = LauncherUtils.dpF(context, if (isMajor) 2.6f else 1.4f)
-                tickPaint.color = if (isMajor) accent else Color.argb(150, 220, 235, 255)
-                val inner = r * if (isMajor) 0.78f else 0.85f
-                val outer = r * 0.92f
+            innerRingPaint.strokeWidth = LauncherUtils.dpF(context, 1f)
+            innerRingPaint.color = Color.argb(75, 255, 255, 255)
+            canvas.drawCircle(cx, cy, r * 0.88f, innerRingPaint)
+
+            for (i in 0 until 60) {
+                val ang = Math.toRadians((i * 6 - 90).toDouble())
+                val isHour = i % 5 == 0
+                tickPaint.strokeWidth = LauncherUtils.dpF(context, if (isHour) 2.2f else 1f)
+                tickPaint.color = if (isHour) accent else Color.argb(90, 210, 230, 255)
+                val inner = r * if (isHour) 0.83f else 0.86f
+                val outer = r * 0.89f
                 canvas.drawLine(
                     (cx + cos(ang) * inner).toFloat(), (cy + sin(ang) * inner).toFloat(),
                     (cx + cos(ang) * outer).toFloat(), (cy + sin(ang) * outer).toFloat(), tickPaint
                 )
+            }
+
+            for (hrNum in 1..12) {
+                val ang = Math.toRadians((hrNum * 30 - 90).toDouble())
+                val isCardinal = hrNum % 3 == 0
+                numPaint.textSize = r * if (isCardinal) 0.19f else 0.145f
+                numPaint.color = if (isCardinal) Color.WHITE else Color.argb(215, 205, 225, 250)
+                val numDist = r * 0.67f
+                val nx = (cx + cos(ang) * numDist).toFloat()
+                val ny = (cy + sin(ang) * numDist).toFloat() - ((numPaint.descent() + numPaint.ascent()) / 2f)
+                canvas.drawText(hrNum.toString(), nx, ny, numPaint)
             }
 
             val cal = Calendar.getInstance()
@@ -402,13 +566,15 @@ class AmbientStageWidget(
             val min = cal.get(Calendar.MINUTE) + sec / 60f
             val hr = (cal.get(Calendar.HOUR) % 12) + min / 60f
 
-            drawHand(canvas, cx, cy, (hr * 30f - 90f), r * 0.50f, 4.2f, Color.WHITE)
-            drawHand(canvas, cx, cy, (min * 6f - 90f), r * 0.70f, 2.8f, Color.rgb(185, 230, 255))
-            drawHand(canvas, cx, cy, (sec * 6f - 90f), r * 0.78f, 1.6f, Color.rgb(255, 95, 145))
+            drawHand(canvas, cx, cy, (hr * 30f - 90f), r * 0.45f, 4.4f, Color.WHITE)
+            drawHand(canvas, cx, cy, (min * 6f - 90f), r * 0.66f, 2.8f, Color.rgb(185, 230, 255))
+            drawHand(canvas, cx, cy, (sec * 6f - 90f), r * 0.76f, 1.5f, Color.rgb(255, 95, 135))
 
             handPaint.style = Paint.Style.FILL
             handPaint.color = accent
-            canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 4f), handPaint)
+            canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 5f), handPaint)
+            handPaint.color = Color.WHITE
+            canvas.drawCircle(cx, cy, LauncherUtils.dpF(context, 2f), handPaint)
         }
 
         private fun drawHand(canvas: Canvas, cx: Float, cy: Float, deg: Float, len: Float, strokeDp: Float, col: Int) {

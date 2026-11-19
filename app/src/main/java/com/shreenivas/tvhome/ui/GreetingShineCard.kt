@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -32,10 +34,13 @@ class GreetingShineCard(
     private var shimmerX = -200f
     private val shimmerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shaderMatrix = Matrix()
+    private val clipPath = Path()
+    private val clipRect = RectF()
 
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        outlineProvider = null // Removes dark rectangular elevation shadow behind translucent glass
         setPadding(dp(14), dp(7), dp(16), dp(7))
 
         iconTv.apply {
@@ -93,10 +98,16 @@ class GreetingShineCard(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (w <= 0) return
+        if (w <= 0 || h <= 0) return
+
+        val radius = LauncherUtils.dpF(context, 20f)
+        clipRect.set(0f, 0f, w.toFloat(), h.toFloat())
+        clipPath.reset()
+        clipPath.addRoundRect(clipRect, radius, radius, Path.Direction.CW)
+
         shimmerPaint.shader = LinearGradient(
-            0f, 0f, w * 0.4f, 0f,
-            intArrayOf(Color.TRANSPARENT, Color.argb(45, 255, 255, 255), Color.TRANSPARENT),
+            0f, 0f, w * 0.35f, h * 0.4f,
+            intArrayOf(Color.TRANSPARENT, Color.argb(55, 255, 255, 255), Color.TRANSPARENT),
             floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP
         )
         shimmerAnim?.cancel()
@@ -110,9 +121,12 @@ class GreetingShineCard(
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
         if (width > 0 && shimmerPaint.shader != null) {
+            canvas.save()
+            canvas.clipPath(clipPath) // Strictly clips diagonal beam inside rounded pill!
             shaderMatrix.setTranslate(shimmerX, 0f)
             shimmerPaint.shader.setLocalMatrix(shaderMatrix)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), shimmerPaint)
+            canvas.restore()
         }
     }
 

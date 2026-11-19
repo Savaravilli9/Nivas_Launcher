@@ -1,14 +1,11 @@
 package com.shreenivas.tvhome
 
-import android.Manifest
 import android.animation.LayoutTransition
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
@@ -38,6 +35,7 @@ import com.shreenivas.tvhome.ui.TopNavBar
 class MainActivity : Activity() {
     companion object {
         private const val REQ_PICK_WALLPAPER = 1001
+        private const val REQ_PICK_PROFILE_PIC = 1002
     }
 
     private lateinit var rootLayout: FrameLayout
@@ -95,40 +93,6 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(pkgReceiver, filter)
         }
-        checkAndExplainPermissions()
-    }
-
-    private fun checkAndExplainPermissions() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-
-        val needed = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.GET_ACCOUNTS
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            needed.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-
-        val missing = needed.filter {
-            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
-        }
-        val alreadyPrompted = lp.prefs.getBoolean("perm_rationale_shown", false)
-
-        if (missing.isNotEmpty() && !alreadyPrompted) {
-            lp.prefs.edit().putBoolean("perm_rationale_shown", true).apply()
-            AlertDialog.Builder(this)
-                .setTitle("Permissions Required for Full Experience")
-                .setMessage(
-                    "• Location: To detect your local city for live weather & scan nearby Wi-Fi networks.\n\n" +
-                    "• Account Info: To display your signed-in profile name & email on the top bar.\n\n" +
-                    "• Bluetooth: To show connected remotes, speakers & audio devices."
-                )
-                .setPositiveButton("Allow Permissions") { _, _ ->
-                    requestPermissions(missing.toTypedArray(), 101)
-                }
-                .setNegativeButton("Later", null)
-                .show()
-        }
     }
 
     override fun onDestroy() {
@@ -157,8 +121,9 @@ class MainActivity : Activity() {
             super.onBackPressed()
         }
     }
-        override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar)) {
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (sideDrawer.isOpen && DrawerFocusTrap.handleKeyEvent(event, true, drawerLayout, topNavBar, sideDrawer.getParentNavTag())) {
             return true
         }
         return super.dispatchKeyEvent(event)
@@ -168,37 +133,47 @@ class MainActivity : Activity() {
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(req, res, data)
-        if (req == REQ_PICK_WALLPAPER && res == RESULT_OK && data?.data != null) {
-            val uri = data.data!!
-            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+        if (res != RESULT_OK || data?.data == null) return
+        val uri = data.data!!
+        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+
+        if (req == REQ_PICK_WALLPAPER) {
             lp.prefs.edit().putString(LauncherPreferences.PREF_WALLPAPER, uri.toString()).putString("wp_scale_mode", "fit")
                 .putFloat("wp_zoom", 1.08f).putInt("wp_offset_x", 0).putInt("wp_offset_y", 0).apply()
             applyWallpaperOnly()
             sideDrawer.open(SideControlDrawer.MODE_WALLPAPER_EDIT)
+        } else if (req == REQ_PICK_PROFILE_PIC) {
+            lp.prefs.edit().putString("profile_pic_uri", uri.toString()).apply()
+            topNavBar.refreshProfileAvatar()
+            Toast.makeText(this, "Profile avatar updated!", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun openWallpaperPicker() {
+    private fun openImagePicker(requestCode: Int) {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "image/*"
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
         try {
             @Suppress("DEPRECATION")
-            startActivityForResult(intent, REQ_PICK_WALLPAPER)
+            startActivityForResult(intent, requestCode)
         } catch (_: Exception) { Toast.makeText(this, "No image picker found", Toast.LENGTH_SHORT).show() }
     }
-
-    private fun buildScreen() {
+        private fun buildScreen() {
         rootLayout = FrameLayout(this)
         LauncherBackground.apply(this, rootLayout, lp)
 
         mainPage = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(28), dp(14), dp(28), dp(12))
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            // Top padding 24dp ensures the top half of the 88dp floating avatar is NEVER cut at screen top!
+            setPadding(dp(28), dp(24), dp(28), dp(12))
         }
         rootLayout.addView(mainPage, FrameLayout.LayoutParams(-1, -1))
 
         topNavBar = TopNavBar(this, lp, object : TopNavBar.NavCallbacks {
+            override fun onProfileClick() = sideDrawer.showProfileEditDialog()
             override fun onVoiceSearch() {
                 val actions = listOf(Intent.ACTION_ASSIST, RecognizerIntent.ACTION_WEB_SEARCH, Intent.ACTION_VOICE_COMMAND)
                 for (act in actions) { try { startActivity(Intent(act)); return } catch (_: Exception) {} }
@@ -210,9 +185,13 @@ class MainActivity : Activity() {
             override fun onQuickSettingsClick() = sideDrawer.toggle(SideControlDrawer.MODE_QUICK)
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
-        mainPage.addView(topNavBar)
+        // Fixed 42dp height for TopNavBar so Side Panels start immediately below the TopNavBar!
+        mainPage.addView(topNavBar, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(18) })
 
-        val contentArea = FrameLayout(this)
+        val contentArea = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+        }
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val rightStageW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
@@ -250,7 +229,7 @@ class MainActivity : Activity() {
                 cornerRadius = LauncherUtils.dpF(this@MainActivity, 14f)
                 setStroke(dp(1), Color.argb(140, 255, 255, 255))
             }
-            setOnFocusChangeListener { v, f -> LauncherUtils.applyFocusSpring(v, f, 1.06f, 4f) }
+            setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.06f, 4f) }
             setOnClickListener { closeHiddenRibbon() }
         }
         hiddenHeader.addView(closeHiddenBtn, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
@@ -343,16 +322,21 @@ class MainActivity : Activity() {
         drawerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE; translationX = (drawerW + dp(30)).toFloat()
         }
-                contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(6) })
+        contentArea.addView(drawerLayout, FrameLayout.LayoutParams(drawerW, -1, Gravity.END).apply { topMargin = dp(6); bottomMargin = dp(10) })
 
         sideDrawer = SideControlDrawer(
             this, drawerLayout, drawerScrim, mainPage, lp,
-            { applyLiveVisuals(mainBody) }, ::applyWallpaperOnly, ::openWallpaperPicker, ::openHiddenRibbon
+            { applyLiveVisuals(mainBody) },
+            ::applyWallpaperOnly,
+            { openImagePicker(REQ_PICK_WALLPAPER) },
+            { openImagePicker(REQ_PICK_PROFILE_PIC) },
+            ::openHiddenRibbon
         )
         sideDrawer.attachStageWidget(ambientStage)
     }
 
     private fun applyLiveVisuals(mainBody: LinearLayout) {
+        topNavBar.refreshProfileAvatar()
         topNavBar.refreshGreeting()
         LauncherBackground.updateThemeAndAccent(rootLayout, lp)
 
@@ -369,6 +353,7 @@ class MainActivity : Activity() {
                 interpolator = MotionEngine.getInterpolator(lp.motionStyle)
                 addUpdateListener { anim ->
                     drawerLayout.layoutParams.width = anim.animatedValue as Int
+                                        drawerLayout.layoutParams.width = anim.animatedValue as Int
                     drawerLayout.requestLayout()
                 }
                 start()
