@@ -93,10 +93,11 @@ class TopNavBar(
     init {
         clipChildren = false
         clipToPadding = false
-        setPadding(dp(4), dp(22), dp(6), dp(22))
-        
+        setPadding(0, 0, 0, 0)
+
         val barHeight = dp(38)
-        val avatarSize = dp(92) // Large 2.5x Hero Profile Avatar centered on TopNavBar centerline
+        val avatarSize = dp(88)
+
 
         // 1. RIGHT-ALIGNED FIXED CONTROLS (Pinned to right edge so they NEVER go off-screen)
         val rightControls = LinearLayout(context).apply {
