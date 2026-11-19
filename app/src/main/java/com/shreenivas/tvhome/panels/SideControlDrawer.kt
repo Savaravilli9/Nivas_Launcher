@@ -179,6 +179,10 @@ class SideControlDrawer(
 
     private fun populateActivePanel(isInitialOpen: Boolean) {
         val panel = activePanel ?: return
+        val focusedIndex = if (!isInitialOpen) {
+            (0 until panel.childCount).firstOrNull { panel.getChildAt(it).hasFocus() } ?: -1
+        } else -1
+
         panel.removeAllViews()
 
         when (currentMode) {
@@ -198,7 +202,14 @@ class SideControlDrawer(
             MODE_SUB_SOUND -> buildSoundSubPanel(panel)
             else -> buildControlCenter(panel)
         }
-        if (isInitialOpen) panel.post { panel.requestFocus() }
+
+        panel.post {
+            if (isInitialOpen) {
+                panel.requestFocus()
+            } else if (focusedIndex in 0 until panel.childCount) {
+                panel.getChildAt(focusedIndex).requestFocus()
+            }
+        }
     }
 
     private fun buildControlCenter(panel: LinearLayout) {
