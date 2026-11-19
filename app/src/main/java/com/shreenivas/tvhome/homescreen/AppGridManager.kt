@@ -153,7 +153,9 @@ object AppGridManager {
         val targetCols = ((currentAvailableW + gap) / (desiredTilePx + gap)).coerceIn(3, 8)
         val cellW = (currentAvailableW - (gap * (targetCols - 1))) / targetCols
         val tileW = (cellW * 0.94f).toInt()
-        val tileH = (tileW * 0.86f).toInt()
+        val extraNameplateH = LauncherUtils.dp(ctx, 28)
+        val tileH = (tileW * 0.86f).toInt() + extraNameplateH
+
         val sideMargin = maxOf(0, (cellW - tileW) / 2)
         
         val currentFavSig = favApps.joinToString { it.activityInfo.packageName }
