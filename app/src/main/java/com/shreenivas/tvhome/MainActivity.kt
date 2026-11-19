@@ -164,7 +164,11 @@ class MainActivity : Activity() {
         LauncherBackground.apply(this, rootLayout, lp)
 
         mainPage = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(28), dp(14), dp(28), dp(12))
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            // Top padding 24dp ensures the top half of the 88dp floating avatar is NEVER cut at screen top!
+            setPadding(dp(28), dp(24), dp(28), dp(12))
         }
         rootLayout.addView(mainPage, FrameLayout.LayoutParams(-1, -1))
 
@@ -181,9 +185,13 @@ class MainActivity : Activity() {
             override fun onQuickSettingsClick() = sideDrawer.toggle(SideControlDrawer.MODE_QUICK)
             override fun onPowerClick() = sideDrawer.toggle(SideControlDrawer.MODE_POWER)
         })
-        mainPage.addView(topNavBar)
+        // Fixed 42dp height for TopNavBar so Side Panels start immediately below the TopNavBar!
+        mainPage.addView(topNavBar, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(10) })
 
-        val contentArea = FrameLayout(this)
+        val contentArea = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+        }
         mainPage.addView(contentArea, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val rightStageW = maxOf(dp(250), (resources.displayMetrics.widthPixels * (lp.panelWidthPct / 100f)).toInt())
