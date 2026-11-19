@@ -212,51 +212,108 @@ class SideControlDrawer(
         }
     }
 
+    private data class SystemTileSpec(
+        val icon: String,
+        val title: String,
+        val sub: String,
+        val actions: List<String>,
+        val fallbackAction: (() -> Unit)? = null
+    )
+
     private fun buildControlCenter(panel: LinearLayout) {
         val sysRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        sysRow.addView(text("GOOGLE TV QUICK PANELS", 9f, lp.accentColor, true)); sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+        sysRow.addView(text("SYSTEM CONTROLS", 9f, lp.accentColor, true))
+        sysRow.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
         val sysBtn = text("⚙ All Settings", 9.5f, Color.WHITE, true).apply {
             setPadding(dp(10f), dp(4f), dp(10f), dp(4f)); isFocusable = true; background = glassCardBg(false)
             setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.04f, 3f); v.background = glassCardBg(f) }
             setOnClickListener { launch(Settings.ACTION_SETTINGS) }
         }
-        sysRow.addView(sysBtn); panel.addView(sysRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
+        sysRow.addView(sysBtn)
+        panel.addView(sysRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
 
-        val gridRow1 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
-        gridRow1.addView(makeGridTile("📺", "TV Inputs", "HDMI & Sources ›") { open(MODE_SUB_INPUTS) }, LinearLayout.LayoutParams(0, dp(58f), 1f).apply { rightMargin = dp(6f) })
-        gridRow1.addView(makeGridTile("🎨", "Picture", "$selectedPicturePreset ›") { open(MODE_SUB_PICTURE) }, LinearLayout.LayoutParams(0, dp(58f), 1f))
-        panel.addView(gridRow1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
+        // Candidate system capabilities — automatically filtered by what actually exists on this TV/Box!
+        val candidates = listOf(
+            SystemTileSpec("🖼", "Screensaver", "Ambient display", listOf(Settings.ACTION_DREAM_SETTINGS, "com.android.tv.settings.DAYDREAM")) { open(MODE_WALLPAPER_EDIT) },
+            SystemTileSpec("📺", "TV Inputs", "HDMI & Sources", listOf("android.media.tv.action.SETUP_INPUTS", "com.android.tv.action.VIEW_INPUTS")),
+            SystemTileSpec("☀", "Display", "Picture & HDR", listOf("com.android.tv.settings.DISPLAY", Settings.ACTION_DISPLAY_SETTINGS)) { open(MODE_SUB_PICTURE) },
+            SystemTileSpec("🔊", "Sound", getActiveAudioDeviceName().removeSuffix(" ›"), listOf("com.android.tv.settings.SOUND", Settings.ACTION_SOUND_SETTINGS)) { open(MODE_SUB_SOUND) },
+            SystemTileSpec("📶", "Wi-Fi", "Network settings", listOf(Settings.ACTION_WIFI_SETTINGS, "com.android.tv.settings.NETWORK")) { open(MODE_WIFI) },
+            SystemTileSpec("🔵", "Bluetooth", "Remotes & Audio", listOf(Settings.ACTION_BLUETOOTH_SETTINGS, "com.android.tv.settings.ACCESSORIES")),
+            SystemTileSpec("📡", "Cast", "Chromecast built-in", listOf(Settings.ACTION_CAST_SETTINGS, "com.google.android.gms.cast.settings.CastSettingsActivity")),
+            SystemTileSpec("💾", "Storage", "Internal & USB", listOf(Settings.ACTION_INTERNAL_STORAGE_SETTINGS, Settings.ACTION_MEMORY_CARD_SETTINGS)),
+            SystemTileSpec("📱", "Apps", "Manage TV apps", listOf(Settings.ACTION_APPLICATION_SETTINGS, "com.android.tv.settings.APPS")),
+            SystemTileSpec("♿", "Accessibility", "Captions & TalkBack", listOf(Settings.ACTION_ACCESSIBILITY_SETTINGS, "com.android.tv.settings.ACCESSIBILITY"))
+        )
 
-        val gridRow2 = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
-        gridRow2.addView(makeGridTile("🔊", "Audio Out", getActiveAudioDeviceName()) { open(MODE_SUB_SOUND) }, LinearLayout.LayoutParams(0, dp(58f), 1f).apply { rightMargin = dp(6f) })
-        gridRow2.addView(makeGridTile("🖼", "Wallpaper", "Live & Gallery ›") { open(MODE_WALLPAPER_EDIT) }, LinearLayout.LayoutParams(0, dp(58f), 1f))
-        panel.addView(gridRow2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8f) })
-
-        addLabel(panel, "REAL-TIME BRIGHTNESS & VOLUME")
-        addSliderCard(panel, "☀  Display Brightness", brightnessPct) { p ->
-            brightnessPct = p
-            applyRealBrightness(p)
+        // Filter dynamically using PackageManager so ONLY features actually supported by this device appear!
+        val pm = context.packageManager
+        val activeTiles = candidates.mapNotNull { spec ->
+            val resolvedIntent = spec.actions.firstNotNullOfOrNull { act ->
+                val intent = Intent(act).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (pm.resolveActivity(intent, 0) != null) intent else null
+            }
+            when {
+                resolvedIntent != null -> spec to { try { context.startActivity(resolvedIntent) } catch (_: Exception) { spec.fallbackAction?.invoke() } }
+                spec.fallbackAction != null -> spec to spec.fallbackAction
+                else -> null
+            }
         }
 
+        // Automatically render discovered system controls in 2-column glossy glass rows
+        for (i in activeTiles.indices step 2) {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                clipChildren = false
+                clipToPadding = false
+            }
+            val (firstSpec, firstClick) = activeTiles[i]
+            row.addView(
+                makeGridTile(firstSpec.icon, firstSpec.title, firstSpec.sub, firstClick),
+                LinearLayout.LayoutParams(0, dp(56f), 1f).apply {
+                    if (i + 1 < activeTiles.size) rightMargin = dp(6f)
+                }
+            )
+            if (i + 1 < activeTiles.size) {
+                val (secondSpec, secondClick) = activeTiles[i + 1]
+                row.addView(
+                    makeGridTile(secondSpec.icon, secondSpec.title, secondSpec.sub, secondClick),
+                    LinearLayout.LayoutParams(0, dp(56f), 1f)
+                )
+            }
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
+        }
+
+        // Live Volume Slider (Directly controls TV Hardware Audio Volume)
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val maxVol = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
         val curVol = am?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 10
         val volPct = ((curVol * 100f) / maxOf(1, maxVol)).toInt()
-        addSliderCard(panel, "🔊  TV Audio Volume", volPct) { p ->
+        addSliderCard(panel, "🔊  TV Master Volume", volPct) { p ->
             am?.setStreamVolume(AudioManager.STREAM_MUSIC, ((p / 100f) * maxVol).toInt(), AudioManager.FLAG_SHOW_UI)
         }
 
-        addLabel(panel, "SYSTEM & CONNECTIVITY")
-        val ramSummary = getRamStatusText()
-        addActionButton(panel, "🚀", "Boost Memory (RAM)", ramSummary) {
-            Runtime.getRuntime().gc()
-            Toast.makeText(context, "Memory optimized! ${getRamStatusText()}", Toast.LENGTH_SHORT).show()
-            populateActivePanel(false)
+        // In-place Boost Memory card (Zero-Rebuild, focus never resets)
+        val ramCard = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12f), dp(9f), dp(12f), dp(9f)); isFocusable = true; background = glassCardBg(false)
+            setOnFocusChangeListener { v, f -> MotionEngine.animateFocus(v, f, lp.motionStyle, 1.02f, 4f); v.background = glassCardBg(f) }
         }
-        addActionButton(panel, "📶", "Wi-Fi & Network", "Signal, IP & nearby networks ›") { open(MODE_WIFI) }
-        addActionButton(panel, "🔵", "Bluetooth Devices", "Remotes, speakers & controllers") { launch(Settings.ACTION_BLUETOOTH_SETTINGS) }
-        addActionButton(panel, "📱", "Installed Apps", "Storage, cache & permissions") { launch(Settings.ACTION_APPLICATION_SETTINGS) }
+        ramCard.addView(text("🚀", 14f, lp.accentColor, true).apply { setPadding(0, 0, dp(10f), 0) })
+        val ramMid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        ramMid.addView(text("Boost Memory (RAM)", 10.5f, Color.WHITE, true))
+        val ramSubTv = text(getRamStatusText(), 8.5f, Color.argb(185, 210, 230, 245), false)
+        ramMid.addView(ramSubTv)
+        ramCard.addView(ramMid, LinearLayout.LayoutParams(0, -2, 1f))
+        ramCard.addView(text("›", 15f, Color.argb(180, 255, 255, 255), true))
+        ramCard.setOnClickListener {
+            Runtime.getRuntime().gc()
+            ramSubTv.text = getRamStatusText()
+            Toast.makeText(context, "Memory optimized!", Toast.LENGTH_SHORT).show()
+        }
+        panel.addView(ramCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6f) })
     }
+    
     private fun getCurrentSystemBrightnessPct(): Int {
         return try {
             val raw = Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 200)
