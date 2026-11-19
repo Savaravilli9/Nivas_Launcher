@@ -116,29 +116,38 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
 
     private fun buildShapeIntoPath(target: Path, w: Float, h: Float, inset: Float) {
         target.reset()
-        val left = inset
-        val top = inset
-        val right = w - inset
-        val bottom = h - inset
-        val sw = right - left
-        val sh = bottom - top
+        val sw = w - inset * 2f
+        val sh = h - inset * 2f
         if (sw <= 0f || sh <= 0f) return
+
+        // Force 1:1 square bounding box centered inside the view so Heart & Circle NEVER stretch vertically
+        val s = minOf(sw, sh)
+        val left = (w - s) / 2f
+        val top = (h - s) / 2f
+        val right = left + s
+        val bottom = top + s
+        val cx = w / 2f
+        val cy = h / 2f
 
         when (iconShape) {
             "heart" -> {
-                val cx = left + sw / 2f
-                val topY = top + sh * 0.22f
-                val botY = bottom - dp(1f)
-                val lx = left + sw * 0.08f
-                val rx = right - sw * 0.08f
-                target.moveTo(cx, botY)
-                target.cubicTo(lx - sw * 0.08f, top + sh * 0.64f, lx, top + sh * 0.10f, cx, topY + sh * 0.07f)
-                target.cubicTo(rx, top + sh * 0.10f, rx + sw * 0.08f, top + sh * 0.64f, cx, botY)
+                val topDipY = top + s * 0.26f
+                val bottomTipY = bottom - s * 0.04f
+                target.moveTo(cx, bottomTipY)
+                target.cubicTo(
+                    left - s * 0.06f, top + s * 0.62f,
+                    left + s * 0.02f, top + s * 0.04f,
+                    cx, topDipY
+                )
+                target.cubicTo(
+                    right - s * 0.02f, top + s * 0.04f,
+                    right + s * 0.06f, top + s * 0.62f,
+                    cx, bottomTipY
+                )
                 target.close()
             }
             "circle" -> {
-                val r = minOf(sw, sh) / 2f
-                target.addCircle(left + sw / 2f, top + sh / 2f, r, Path.Direction.CW)
+                target.addCircle(cx, cy, s / 2f, Path.Direction.CW)
             }
             else -> {
                 val radius = if (iconShape == "classic") dp(6f) else dp(18f)
