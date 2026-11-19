@@ -109,7 +109,7 @@ class GlowTileLayout(context: Context) : FrameLayout(context) {
 
     private fun buildDoublePaths(w: Float, h: Float) {
         val outerInset = dp(1.5f)
-        val visibleGap = dp(4.5f) // Visible gap between Outer Theme Shape and Inner Icon Shape
+        val visibleGap = dp(7.5f) // Visible gap between Outer Theme Shape and Inner Icon Shape
         buildShapeIntoPath(outerPath, w, h, outerInset)
         buildShapeIntoPath(innerIconPath, w, h, outerInset + visibleGap)
     }
