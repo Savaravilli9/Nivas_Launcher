@@ -69,7 +69,7 @@ object DrawerFocusTrap {
                 return true
             }
 
-            // If pressing UP at the top edge of the Drawer, jump focus back to the TopNavBar parent button
+            // ONLY allow exiting the drawer when pressing UP at the very top of the drawer
             if (inDrawer && code == KeyEvent.KEYCODE_DPAD_UP) {
                 val parentBtn = if (activeParentTag.isNotEmpty()) {
                     topNavBar.findViewWithTag<View>(activeParentTag)
@@ -78,7 +78,8 @@ object DrawerFocusTrap {
                 return true
             }
 
-            return inDrawer
+            // Strictly block LEFT, RIGHT, and DOWN at drawer edges so focus NEVER escapes to TopNavBar!
+            return true
         }
 
         drawerLayout.requestFocus()
