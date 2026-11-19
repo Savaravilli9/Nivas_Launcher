@@ -93,7 +93,8 @@ class TopNavBar(
     init {
         clipChildren = false
         clipToPadding = false
-        setPadding(0, dp(2), 0, dp(10))
+        setPadding(dp(4), dp(8), dp(6), dp(14))
+)
 
         val barHeight = dp(38)
         val avatarSize = dp(92) // Large 2.5x Hero Profile Avatar centered on TopNavBar centerline
@@ -284,10 +285,13 @@ class TopNavBar(
                     BitmapFactory.decodeStream(it, null, opts)
                 }
                 if (rawBmp != null) {
+                val zoom = lp.prefs.getFloat("profile_pic_zoom", 1.0f)
                     avatarImageView.setImageBitmap(makeCircularBitmap(rawBmp))
+                    avatarImageView.scaleX = zoom
+                    avatarImageView.scaleY = zoom
                     avatarImageView.visibility = View.VISIBLE
                     avatarInitialTv.visibility = View.GONE
-                    return
+                return
                 }
             } catch (_: Exception) {}
         }
